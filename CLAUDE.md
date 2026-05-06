@@ -12,15 +12,16 @@ Python | lmfit | scipy | pandas | matplotlib | jinja2 | jupyter
 |------------|-------------------|---------------------|----------|
 | Quartz     | SiO₂              | Hexagonal           | R040031  |
 | Calcite    | CaCO₃             | Trigonal            | R050048  |
-| Corundum   | Al₂O₃             | Rhombohedral        | R061220  |
+| Corundum   | Al₂O₃             | Rhombohedral        | R040096  |
 | Fluorite   | CaF₂              | Cubic               | R050115  |
 | Magnetite  | Fe₃O₄             | Cubic (spinel)      | R061111  |
-| Perovskite | CaTiO₃            | Orthorhombic/Tet    | R060345  |
+| Perovskite | CaTiO₃            | Orthorhombic/Tet    | R050456  |
 | Rutile     | TiO₂              | Tetragonal          | R040049  |
-| Kaolinite  | Al₂Si₂O₅(OH)₄   | Triclinic           | R061500  |
+| Kaolinite  | Al₂Si₂O₅(OH)₄   | Triclinic           | R140004  |
 
-Note: BaTiO₃ not in RRUFF → use Perovskite (CaTiO₃) R060345
+Note: BaTiO₃ not in RRUFF → use Perovskite (CaTiO₃) R050456
 Note: SrTiO₃/tausonite minimal coverage → use Rutile R040049
+Note: R061220/R060345/R061500 not in XY_RAW.zip → substituted R040096/R050456/R140004 (same minerals)
 
 ## RRUFF File Format
 - Headers: lines beginning with `##` (variable count, NOT fixed 11 lines)
