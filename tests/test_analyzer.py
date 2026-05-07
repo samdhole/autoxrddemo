@@ -1,0 +1,129 @@
+import pytest
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from pipeline.loader import XRDData
+from pipeline.fitter import XRDFitter, FitResult
+from pipeline.analyzer import XRDAnalyzer
+
+
+def make_mock_fit_result(
+    name="TestSample",
+    center=28.44,
+    fwhm=0.20,
+    r_squared=0.98,
+    wavelength=1.54056,
+) -> FitResult:
+    return FitResult(
+        name=name,
+        lmfit_result=None,
+        dominant_peak={"center": center, "fwhm": fwhm, "amplitude": 80.0, "eta": 0.5},
+        r_squared=r_squared,
+        aic=-100.0,
+        bic=-90.0,
+        n_peaks=2,
+        wavelength=wavelength,
+    )
+
+
+class TestScherrerAndDSpacing:
+    def test_d_spacing_known_value(self):
+        # Quartz 26.65°: d = 1.54056 / (2 * sin(13.325°)) ≈ 3.343 Å
+        d = XRDAnalyzer._d_spacing(26.65, 1.54056)
+        assert abs(d - 3.343) < 0.005
+
+    def test_scherrer_known_value(self):
+        # center=28.44°, fwhm=0.20°, λ=1.54056 Å
+        # β = deg2rad(0.20) ≈ 0.003491 rad
+        # θ = 14.22° = 0.24824 rad, cos(θ) ≈ 0.97059
+        # D = 0.9 * 1.54056 / (0.003491 * 0.97059) Å ≈ 409.7 Å ≈ 41.0 nm
+        D = XRDAnalyzer._scherrer(0.20, 28.44, 1.54056)
+        assert abs(D - 41.0) < 2.0
+
+    def test_scherrer_capped_at_500nm(self):
+        # Very narrow fwhm → huge crystallite → capped
+        D = XRDAnalyzer._scherrer(0.001, 28.44, 1.54056)
+        assert D == XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM
+
+    def test_scherrer_returns_nan_for_zero_fwhm(self):
+        D = XRDAnalyzer._scherrer(0.0, 28.44, 1.54056)
+        assert np.isnan(D)
+
+    def test_d_spacing_returns_nan_for_zero_angle(self):
+        d = XRDAnalyzer._d_spacing(0.0, 1.54056)
+        assert np.isnan(d)
+
+
+class TestBuildSummaryTable:
+    def test_returns_dataframe(self):
+        fr = make_mock_fit_result()
+        table = XRDAnalyzer.build_summary_table({"TestSample": fr})
+        assert isinstance(table, pd.DataFrame)
+
+    def test_column_names(self):
+        fr = make_mock_fit_result()
+        table = XRDAnalyzer.build_summary_table({"TestSample": fr})
+        expected = ["Sample", "Phase", "2θ (°)", "d-spacing (Å)", "FWHM (°)",
+                    "Crystallite Size (nm)", "R²", "AIC", "BIC", "N_peaks", "Flag"]
+        assert list(table.columns) == expected
+
+    def test_phase_extracted_from_name(self):
+        fr = make_mock_fit_result(name="Quartz__R040031")
+        table = XRDAnalyzer.build_summary_table({"Quartz__R040031": fr})
+        assert table.iloc[0]["Phase"] == "Quartz"
+
+    def test_d_spacing_correct(self):
+        fr = make_mock_fit_result(center=26.65)
+        table = XRDAnalyzer.build_summary_table({"s": fr})
+        assert abs(table.iloc[0]["d-spacing (Å)"] - 3.343) < 0.01
+
+    def test_r_squared_present(self):
+        fr = make_mock_fit_result(r_squared=0.987)
+        table = XRDAnalyzer.build_summary_table({"s": fr})
+        assert abs(table.iloc[0]["R²"] - 0.987) < 0.0001
+
+
+class TestFlagOutliers:
+    def _make_table(self) -> pd.DataFrame:
+        return pd.DataFrame({
+            "Sample": ["A", "B", "C", "D", "E"],
+            "Phase": ["Q", "C", "F", "M", "K"],
+            "2θ (°)": [26.0, 29.0, 28.0, 35.0, 12.0],
+            "d-spacing (Å)": [3.4, 3.1, 3.2, 2.6, 7.2],
+            "FWHM (°)": [0.15, 0.16, 0.14, 0.15, 1.50],  # K is outlier
+            "Crystallite Size (nm)": [60.0, 58.0, 62.0, 60.0, 6.0],  # K is outlier
+            "R²": [0.98, 0.97, 0.99, 0.96, 0.88],  # K is poor fit
+            "AIC": [-100.0, -95.0, -110.0, -98.0, -80.0],
+            "BIC": [-90.0, -85.0, -100.0, -88.0, -70.0],
+            "N_peaks": [3, 4, 3, 5, 2],
+            "Flag": ["", "", "", "", ""],
+        })
+
+    def test_poor_fit_flagged(self):
+        table = self._make_table()
+        result = XRDAnalyzer.flag_outliers(table)
+        assert "Poor fit" in result.iloc[4]["Flag"]
+
+    def test_flag_column_present(self):
+        table = self._make_table()
+        result = XRDAnalyzer.flag_outliers(table)
+        assert "Flag" in result.columns
+        assert "Flag (IQR supplement)" in result.columns
+
+    def test_no_false_positives_on_uniform_data(self):
+        # All values identical — no outliers should be flagged
+        df = pd.DataFrame({
+            "Sample": ["A", "B", "C"],
+            "Phase": ["Q", "C", "F"],
+            "2θ (°)": [26.0, 26.0, 26.0],
+            "d-spacing (Å)": [3.4, 3.4, 3.4],
+            "FWHM (°)": [0.15, 0.15, 0.15],
+            "Crystallite Size (nm)": [60.0, 60.0, 60.0],
+            "R²": [0.98, 0.98, 0.98],
+            "AIC": [-100.0, -100.0, -100.0],
+            "BIC": [-90.0, -90.0, -90.0],
+            "N_peaks": [3, 3, 3],
+            "Flag": ["", "", ""],
+        })
+        result = XRDAnalyzer.flag_outliers(df)
+        assert all(result["Flag"] == "")
