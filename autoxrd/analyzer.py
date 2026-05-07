@@ -138,6 +138,14 @@ class XRDAnalyzer:
         Returns one row per peak family (Peak #) with slope/R² for both 2θ and FWHM.
         Families with fewer than 3 observations get NaN slopes (insufficient for a line).
         """
+        _empty_schema = pd.DataFrame(columns=[
+            "Peak #", "Center (°)", "N_obs",
+            "Position slope (°/sample)", "Position R²",
+            "FWHM slope (°/sample)", "FWHM R²",
+        ])
+        if peak_table.empty or "Sample" not in peak_table.columns:
+            return _empty_schema
+
         sample_idx = {name: i + 1 for i, name in enumerate(sample_order)}
         pt = peak_table[peak_table["Sample"].isin(sample_order)].copy()
         pt["_idx"] = pt["Sample"].map(sample_idx)
@@ -150,37 +158,35 @@ class XRDAnalyzer:
             fwhms = grp["FWHM (°)"].values.astype(float)
             n = int(len(indices))
 
+            row = {
+                "Peak #": int(peak_num),
+                "Center (°)": round(float(positions.mean()), 3),
+                "N_obs": n,
+                "Position slope (°/sample)": float("nan"),
+                "Position R²": float("nan"),
+                "FWHM slope (°/sample)": float("nan"),
+                "FWHM R²": float("nan"),
+            }
             if n >= 3:
                 pos_coeffs = np.polyfit(indices, positions, 1)
                 pos_fit = np.polyval(pos_coeffs, indices)
                 ss_res_pos = float(np.sum((positions - pos_fit) ** 2))
                 ss_tot_pos = float(np.sum((positions - positions.mean()) ** 2))
-                pos_r2 = 1.0 - ss_res_pos / ss_tot_pos if ss_tot_pos > 0 else float("nan")
+                row["Position slope (°/sample)"] = round(float(pos_coeffs[0]), 6)
+                row["Position R²"] = round(1.0 - ss_res_pos / ss_tot_pos, 4) if ss_tot_pos > 0 else float("nan")
 
                 fwhm_coeffs = np.polyfit(indices, fwhms, 1)
                 fwhm_fit = np.polyval(fwhm_coeffs, indices)
                 ss_res_fwhm = float(np.sum((fwhms - fwhm_fit) ** 2))
                 ss_tot_fwhm = float(np.sum((fwhms - fwhms.mean()) ** 2))
-                fwhm_r2 = 1.0 - ss_res_fwhm / ss_tot_fwhm if ss_tot_fwhm > 0 else float("nan")
+                row["FWHM slope (°/sample)"] = round(float(fwhm_coeffs[0]), 6)
+                row["FWHM R²"] = round(1.0 - ss_res_fwhm / ss_tot_fwhm, 4) if ss_tot_fwhm > 0 else float("nan")
+            rows.append(row)
 
-                rows.append({
-                    "Peak #": int(peak_num),
-                    "Center (°)": round(float(positions.mean()), 3),
-                    "N_obs": n,
-                    "Position slope (°/sample)": round(float(pos_coeffs[0]), 6),
-                    "Position R²": round(float(pos_r2), 4),
-                    "FWHM slope (°/sample)": round(float(fwhm_coeffs[0]), 6),
-                    "FWHM R²": round(float(fwhm_r2), 4),
-                })
-            else:
-                rows.append({
-                    "Peak #": int(peak_num),
-                    "Center (°)": round(float(positions.mean()), 3),
-                    "N_obs": n,
-                    "Position slope (°/sample)": float("nan"),
-                    "Position R²": float("nan"),
-                    "FWHM slope (°/sample)": float("nan"),
-                    "FWHM R²": float("nan"),
-                })
-
+        if not rows:
+            return pd.DataFrame(columns=[
+                "Peak #", "Center (°)", "N_obs",
+                "Position slope (°/sample)", "Position R²",
+                "FWHM slope (°/sample)", "FWHM R²",
+            ])
         return pd.DataFrame(rows)

@@ -210,7 +210,7 @@ class TestBuildTrendModel:
             peak_table, ["S1", "S2", "S3", "S4", "S5"]
         )
         row = models[models["Peak #"] == 1].iloc[0]
-        assert row["FWHM slope (°/sample)"] > 0
+        assert abs(row["FWHM slope (°/sample)"] - 0.03) < 1e-4
 
     def test_min_obs_produces_nan(self):
         # Only 2 samples for Peak #1 — below threshold of 3
@@ -223,6 +223,26 @@ class TestBuildTrendModel:
         )
         assert np.isnan(models.iloc[0]["FWHM slope (°/sample)"])
         assert models.iloc[0]["N_obs"] == 2
+
+    def test_empty_peak_table_returns_empty_with_schema(self):
+        models = XRDAnalyzer.build_trend_model(pd.DataFrame(), ["S1", "S2"])
+        assert len(models) == 0
+        assert "FWHM slope (°/sample)" in models.columns
+
+    def test_constant_fwhm_gives_nan_r2(self):
+        rows = [
+            {"Sample": f"S{i}", "Peak #": 1, "2θ (°)": 26.65 + i * 0.01, "FWHM (°)": 0.10}
+            for i in range(1, 6)
+        ]
+        models = XRDAnalyzer.build_trend_model(
+            pd.DataFrame(rows), [f"S{i}" for i in range(1, 6)]
+        )
+        assert np.isnan(models.iloc[0]["FWHM R²"])
+
+    def test_extra_samples_filtered_out(self):
+        peak_table = self._make_peak_table()  # S1–S5
+        models = XRDAnalyzer.build_trend_model(peak_table, ["S1", "S2", "S3"])
+        assert all(models["N_obs"] == 3)
 
 
 class TestParsePhase:
