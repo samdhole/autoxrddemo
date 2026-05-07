@@ -225,6 +225,8 @@ class HTMLReporter:
         if parse_phase is None:
             from .analyzer import _default_parse_phase
             parse_phase = _default_parse_phase
+        if not callable(parse_phase):
+            raise TypeError(f"parse_phase must be callable, got {type(parse_phase).__name__!r}")
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
 

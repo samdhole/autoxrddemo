@@ -193,3 +193,31 @@ class TestWarmStart:
         import inspect
         sig = inspect.signature(XRDFitter.fit_batch)
         assert sig.parameters["warm_start"].default is False
+
+    def test_warm_sigma_propagated_from_fit_sample(self):
+        """Verify fit_sample actually passes warm_sigma to _fit_one_roi when warm_peaks match."""
+        from unittest.mock import patch, call
+        fitter = XRDFitter()
+        x = np.linspace(26.0, 27.5, 150)
+        sigma_real = 0.07
+        y = np.exp(-0.5 * ((x - 26.65) / sigma_real) ** 2) * 90.0 + 2.0
+        y = y / y.max() * 100.0
+        df = pd.DataFrame({"two_theta": x, "intensity": y})
+        xrd = XRDData(name="s", path=Path("s.txt"), metadata={}, df=df, wavelength=1.54056)
+
+        warm_peaks = [{"center": 26.65, "fwhm": sigma_real * 2.0, "amplitude": 90.0,
+                       "eta": 0.2, "d_spacing": 3.34, "relative_intensity": 100.0}]
+
+        received_warm_sigmas = []
+        original_fit_one_roi = fitter._fit_one_roi
+
+        def spy_fit_one_roi(x, y, peak_idx, warm_sigma=None):
+            received_warm_sigmas.append(warm_sigma)
+            return original_fit_one_roi(x, y, peak_idx, warm_sigma=warm_sigma)
+
+        fitter._fit_one_roi = spy_fit_one_roi
+        fitter.fit_sample(xrd, warm_peaks=warm_peaks)
+
+        assert any(ws is not None for ws in received_warm_sigmas), (
+            "No warm_sigma was passed to _fit_one_roi despite matching warm_peaks"
+        )
