@@ -136,7 +136,11 @@ class XRDAnalyzer:
         """Fit peak position and FWHM vs sample index as a linear model.
 
         Returns one row per peak family (Peak #) with slope/R² for both 2θ and FWHM.
-        Families with fewer than 3 observations get NaN slopes (insufficient for a line).
+        Families with fewer than 3 finite observations get NaN slopes.
+
+        Assumes a same-material batch: Peak # is a consistent family identifier across
+        all samples. For mixed-phase batches, pre-filter peak_table to a single phase
+        before calling this method.
         """
         _empty_schema = pd.DataFrame(columns=[
             "Peak #", "Center (°)", "N_obs",
@@ -160,7 +164,7 @@ class XRDAnalyzer:
 
             row = {
                 "Peak #": int(peak_num),
-                "Center (°)": round(float(positions.mean()), 3),
+                "Center (°)": round(float(np.nanmean(positions)), 3),
                 "N_obs": n,
                 "Position slope (°/sample)": float("nan"),
                 "Position R²": float("nan"),
@@ -168,19 +172,25 @@ class XRDAnalyzer:
                 "FWHM R²": float("nan"),
             }
             if n >= 3:
-                pos_coeffs = np.polyfit(indices, positions, 1)
-                pos_fit = np.polyval(pos_coeffs, indices)
-                ss_res_pos = float(np.sum((positions - pos_fit) ** 2))
-                ss_tot_pos = float(np.sum((positions - positions.mean()) ** 2))
-                row["Position slope (°/sample)"] = round(float(pos_coeffs[0]), 6)
-                row["Position R²"] = round(1.0 - ss_res_pos / ss_tot_pos, 4) if ss_tot_pos > 0 else float("nan")
+                # Filter to finite values independently for position and FWHM so a
+                # single bad value in one quantity does not poison the other's fit.
+                pos_mask = np.isfinite(positions)
+                if pos_mask.sum() >= 3:
+                    pi, pv = indices[pos_mask], positions[pos_mask]
+                    pos_coeffs = np.polyfit(pi, pv, 1)
+                    ss_res_pos = float(np.sum((pv - np.polyval(pos_coeffs, pi)) ** 2))
+                    ss_tot_pos = float(np.sum((pv - pv.mean()) ** 2))
+                    row["Position slope (°/sample)"] = round(float(pos_coeffs[0]), 6)
+                    row["Position R²"] = round(1.0 - ss_res_pos / ss_tot_pos, 4) if ss_tot_pos > 0 else float("nan")
 
-                fwhm_coeffs = np.polyfit(indices, fwhms, 1)
-                fwhm_fit = np.polyval(fwhm_coeffs, indices)
-                ss_res_fwhm = float(np.sum((fwhms - fwhm_fit) ** 2))
-                ss_tot_fwhm = float(np.sum((fwhms - fwhms.mean()) ** 2))
-                row["FWHM slope (°/sample)"] = round(float(fwhm_coeffs[0]), 6)
-                row["FWHM R²"] = round(1.0 - ss_res_fwhm / ss_tot_fwhm, 4) if ss_tot_fwhm > 0 else float("nan")
+                fwhm_mask = np.isfinite(fwhms)
+                if fwhm_mask.sum() >= 3:
+                    fi, fv = indices[fwhm_mask], fwhms[fwhm_mask]
+                    fwhm_coeffs = np.polyfit(fi, fv, 1)
+                    ss_res_fwhm = float(np.sum((fv - np.polyval(fwhm_coeffs, fi)) ** 2))
+                    ss_tot_fwhm = float(np.sum((fv - fv.mean()) ** 2))
+                    row["FWHM slope (°/sample)"] = round(float(fwhm_coeffs[0]), 6)
+                    row["FWHM R²"] = round(1.0 - ss_res_fwhm / ss_tot_fwhm, 4) if ss_tot_fwhm > 0 else float("nan")
             rows.append(row)
 
         if not rows:

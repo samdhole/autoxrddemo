@@ -245,6 +245,20 @@ class TestBuildTrendModel:
         models = XRDAnalyzer.build_trend_model(peak_table, ["S1", "S2", "S3"])
         assert all(models["N_obs"] == 3)
 
+    def test_nan_fwhm_does_not_poison_position_fit(self):
+        # 3 of 5 samples have NaN FWHM → only 2 valid FWHM values, below the ≥3 threshold,
+        # so FWHM slope is NaN. All 5 positions are valid → position fit succeeds.
+        rows = [
+            {"Sample": f"S{i}", "Peak #": 1, "2θ (°)": 26.65 + i * 0.01,
+             "FWHM (°)": float("nan") if i in (2, 3, 4) else 0.08 + i * 0.01}
+            for i in range(1, 6)
+        ]
+        models = XRDAnalyzer.build_trend_model(
+            pd.DataFrame(rows), [f"S{i}" for i in range(1, 6)]
+        )
+        assert not np.isnan(models.iloc[0]["Position slope (°/sample)"])
+        assert np.isnan(models.iloc[0]["FWHM slope (°/sample)"])
+
 
 class TestParsePhase:
     def test_default_splits_on_double_underscore(self):
