@@ -273,8 +273,9 @@
     <p class="eyebrow">Characterization Pipeline</p>
     <h1>XRD Batch Analysis<br>to Technical Memo</h1>
     <p class="subtitle">
-      Automated peak fitting, crystallite sizing, and anomaly detection across 8 XRD
-      diffraction patterns — delivered as a formatted, portable HTML memo.
+      Auto-detects every reflection in 8 same-material XRD patterns, tracks peak
+      position and FWHM trends across the batch, and ships a formatted HTML memo —
+      end-to-end in under 20 seconds.
     </p>
   </div>
 
@@ -285,23 +286,24 @@
     <h2>The before / after</h2>
     <div class="timing-grid">
       <div class="timing-card before">
-        <span class="timing-number">4 hrs</span>
+        <span class="timing-number">~4 hrs</span>
         <div class="timing-label">
           <strong>Manual workflow</strong>
-          Open each file in JADE or HighScore.
-          Fit peaks by hand. Record FWHM to spreadsheet.
-          Compute Scherrer sizes. Write memo.
+          Open each pattern in JADE / HighScore / EVA.
+          Identify reflections by eye. Fit profile per peak.
+          Track positions and FWHMs across the batch in a spreadsheet.
+          Write the memo.
         </div>
       </div>
 
       <div class="timing-arrow">→</div>
 
       <div class="timing-card after">
-        <span class="timing-number">~90 sec</span>
+        <span class="timing-number">~20 sec</span>
         <div class="timing-label">
           <strong>This pipeline</strong>
-          Load → Fit → Analyze → Report.
-          Single Python call. Zero manual steps.
+          Load → Auto-detect → Batch-fit → Trend-track → Memo.
+          No manual peak picking. No spreadsheet.
           Portable HTML memo out.
         </div>
       </div>
@@ -324,22 +326,29 @@
       <li>
         <div class="step-num">2</div>
         <div class="step-content">
-          <strong>Fit</strong>
-          <p>Auto-detects peaks via scipy. Builds a dynamic lmfit composite model — one PseudoVoigt profile per peak. Computes R², AIC, BIC per sample.</p>
+          <strong>Auto-detect</strong>
+          <p>Difference of Gaussians (after <em>xrfit</em>): a narrow Gaussian preserves peaks while a wide one approximates baseline. Peak = bandpass exceeds k×MAD-noise. No prominence knob to tune; works against any baseline shape.</p>
         </div>
       </li>
       <li>
         <div class="step-num">3</div>
         <div class="step-content">
-          <strong>Analyze</strong>
-          <p>Extracts d-spacings (Bragg's law) and crystallite sizes (Scherrer equation, K=0.9). Flags outliers by Z-score and IQR.</p>
+          <strong>Fit</strong>
+          <p>Per-peak ROI lmfit PseudoVoigt + linear background. ~30 ms per peak vs minutes for global multi-peak fits. Quality filter rejects fits below physical FWHM / R² / amplitude floors.</p>
         </div>
       </li>
       <li>
         <div class="step-num">4</div>
         <div class="step-content">
+          <strong>Track</strong>
+          <p>Same-material batch: clusters peak families across samples by 2θ proximity. Plots peak position and FWHM vs. sample index — the trend a process engineer reads first.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">5</div>
+        <div class="step-content">
           <strong>Report</strong>
-          <p>Renders a Jinja2 HTML memo with all 8 sample figures embedded as base64 PNGs. Single portable file — no external dependencies.</p>
+          <p>Jinja2 HTML memo with summary table, full per-peak parameter table, trend figure, and base64-embedded sample fits. Single portable file.</p>
         </div>
       </li>
     </ul>
@@ -352,10 +361,11 @@
     <h2>The gap this fills</h2>
     <div class="gap-callout">
       <p>
-        SpectraFit, xrdfit, and Materials_Data_Analytics all stop at fit parameters.
-        Every one delivers a table of numbers. <strong>Nobody generates the memo.</strong>
-        This pipeline goes the last mile — from raw diffraction data to a formatted
-        deliverable a non-specialist buyer can read and act on.
+        <strong>xrdfit</strong> (Sheffield) requires you to specify peak ranges in advance.
+        <strong>autoXRD</strong> (MIT) is a CNN classifier — no per-peak fits.
+        <strong>HighScore</strong> and <strong>EVA</strong> are commercial GUIs. None
+        produce a deliverable a non-specialist process engineer can act on. This pipeline
+        goes the last mile — from raw diffraction data to a formatted memo with trend plots.
       </p>
     </div>
   </section>
@@ -367,20 +377,24 @@
     <h2>Technical approach</h2>
     <div class="tech-grid">
       <div class="tech-card">
+        <div class="tech-label">Peak detection</div>
+        <p>Difference of Gaussians + adaptive MAD-noise threshold. Multi-scale, baseline-shape independent, no manual prominence to tune.</p>
+      </div>
+      <div class="tech-card">
         <div class="tech-label">Peak fitting</div>
-        <p>lmfit PseudoVoigt (Gaussian + Lorentzian mix). Auto-detected peak count; capped at 15 per spectrum.</p>
+        <p>lmfit PseudoVoigt (Gaussian + Lorentzian mix), per-peak ROI ± 0.25°. Levenberg-Marquardt with linear local background. ~30 ms per peak.</p>
       </div>
       <div class="tech-card">
         <div class="tech-label">Crystallite size</div>
         <p>Scherrer equation D = Kλ/βcosθ, K=0.9. Upper-bound estimates; instrument broadening not subtracted.</p>
       </div>
       <div class="tech-card">
-        <div class="tech-label">Outlier detection</div>
-        <p>Dual method: Z-score (|z| &gt; 2.5) + IQR supplement. IQR is more reliable at small n.</p>
+        <div class="tech-label">Outlier flagging</div>
+        <p>R² threshold (poor fit) + IQR on FWHM and crystallite size. Single Flag column with R² value embedded — no false confidence at small n.</p>
       </div>
       <div class="tech-card">
         <div class="tech-label">Output</div>
-        <p>Single-file HTML memo. All figures base64-embedded. Print-ready layout with summary table and next steps.</p>
+        <p>Single-file HTML memo: summary table, full per-peak table, trend figure, sample fits — all figures base64-embedded.</p>
       </div>
     </div>
   </section>

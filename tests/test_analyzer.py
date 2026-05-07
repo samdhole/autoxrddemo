@@ -295,3 +295,49 @@ class TestParsePhase:
         )
         assert isinstance(figure, str)
         assert len(figure) > 0
+
+    def test_build_trend_figure_rejects_non_callable_parse_phase(self):
+        rows = [
+            {"Sample": "S1", "Peak #": 1, "2θ (°)": 26.0, "FWHM (°)": 0.10},
+        ]
+        with pytest.raises(TypeError, match="parse_phase must be callable"):
+            HTMLReporter.build_trend_figure(
+                pd.DataFrame(rows),
+                ["S1"],
+                parse_phase="not-callable",
+            )
+
+    def test_build_trend_figure_draws_trend_model_overlays(self, monkeypatch):
+        from matplotlib.axes import Axes
+
+        rows = [
+            {"Sample": "S1", "Peak #": 1, "2θ (°)": 26.0, "FWHM (°)": 0.10},
+            {"Sample": "S2", "Peak #": 1, "2θ (°)": 26.1, "FWHM (°)": 0.12},
+            {"Sample": "S3", "Peak #": 1, "2θ (°)": 26.2, "FWHM (°)": 0.14},
+        ]
+        trend_models = pd.DataFrame([{
+            "Peak #": 1,
+            "Center (°)": 26.1,
+            "N_obs": 3,
+            "Position slope (°/sample)": 0.1,
+            "Position R²": 1.0,
+            "FWHM slope (°/sample)": 0.02,
+            "FWHM R²": 1.0,
+        }])
+        dashed_lines = []
+        original_plot = Axes.plot
+
+        def spy_plot(self, *args, **kwargs):
+            if kwargs.get("ls") == "--":
+                dashed_lines.append(args)
+            return original_plot(self, *args, **kwargs)
+
+        monkeypatch.setattr(Axes, "plot", spy_plot)
+        figure = HTMLReporter.build_trend_figure(
+            pd.DataFrame(rows),
+            ["S1", "S2", "S3"],
+            trend_models=trend_models,
+        )
+
+        assert isinstance(figure, str)
+        assert len(dashed_lines) == 2

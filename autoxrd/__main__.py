@@ -9,7 +9,7 @@ from .fitter import XRDFitter
 from .analyzer import XRDAnalyzer
 from .reporter import HTMLReporter
 
-DATA_DIR = Path(__file__).parent.parent / "data" / "xrd_samples"
+DATA_DIR = Path(__file__).parent.parent / "data" / "synthetic_quartz"
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / "reports"
 OUTPUT_FILE = OUTPUT_DIR / "xrd_memo.html"
@@ -38,6 +38,7 @@ def main() -> None:
     print("Building summary...")
     summary = XRDAnalyzer.build_summary_table(fit_results)
     summary = XRDAnalyzer.flag_outliers(summary)
+    peak_table = XRDAnalyzer.build_peak_table(fit_results)
 
     print("Rendering HTML memo...")
     reporter = HTMLReporter(TEMPLATE_DIR)
@@ -51,6 +52,7 @@ def main() -> None:
             "instrument": "RRUFF database · wavelength per file header (default Cu Kα λ=1.54056 Å)",
             "sample_count": len(samples),
         },
+        peak_table=peak_table,
     )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

@@ -102,6 +102,7 @@ class TestXRDFitter:
     def test_all_peaks_sorted_by_center(self):
         xrd = make_synthetic_xrd(peak_centers=(26.65, 31.40))
         result = XRDFitter().fit_sample(xrd)
+        assert result.all_peaks, "test is vacuous: synthetic fit found no peaks"
         centers = [p["center"] for p in result.all_peaks]
         assert centers == sorted(centers)
 

@@ -139,6 +139,19 @@
   {{ table_html | safe }}
 </div>
 
+{# ── Section 5b: Per-Peak Parameter Table ── #}
+{% if peak_table_html %}
+<div class="section">
+  <h2>Per-Peak Parameter Table</h2>
+  <p style="font-size:0.85rem;color:#555;">
+    All fitted reflections per sample — position, d-spacing, FWHM, Scherrer crystallite size, and
+    relative intensity (100 = strongest reflection in that sample). This is the table a QC lab reads
+    to track peak positions and widths across a batch.
+  </p>
+  {{ peak_table_html | safe }}
+</div>
+{% endif %}
+
 {# ── Section 6: Anomaly Report ── #}
 <div class="section">
   <h2>Anomaly Report</h2>

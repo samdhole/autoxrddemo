@@ -16,7 +16,7 @@ class XRDData:
 
 class XRDLoader:
     DEFAULT_WAVELENGTH = 1.54056  # Cu Kα
-    MAX_POINTS = 600
+    MAX_POINTS = 4000  # 0.02 deg/pt typical lab step; ROI-fit handles density fine
 
     @staticmethod
     def load(path: str | Path, name: str | None = None) -> XRDData:
