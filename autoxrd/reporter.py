@@ -219,6 +219,9 @@ class HTMLReporter:
         If trend_models (output of XRDAnalyzer.build_trend_model) is provided, overlays
         dashed linear fit lines on each subplot in matching colors.
         """
+        if callable(trend_models) and parse_phase is None:
+            parse_phase = trend_models
+            trend_models = None
         if parse_phase is None:
             from .analyzer import _default_parse_phase
             parse_phase = _default_parse_phase

@@ -5,6 +5,7 @@ from pathlib import Path
 from autoxrd.loader import XRDData
 from autoxrd.fitter import XRDFitter, FitResult
 from autoxrd.analyzer import XRDAnalyzer
+from autoxrd.reporter import HTMLReporter
 
 
 def make_mock_fit_result(
@@ -266,3 +267,17 @@ class TestParsePhase:
             parse_phase=lambda n: n.split("_")[1],
         )
         assert table.iloc[0]["Phase"] == "B"
+
+    def test_custom_parse_phase_trend_figure_positional(self):
+        rows = [
+            {"Sample": "Sample_A_300C", "Peak #": 1, "2θ (°)": 26.0, "FWHM (°)": 0.10},
+            {"Sample": "Sample_B_400C", "Peak #": 1, "2θ (°)": 26.1, "FWHM (°)": 0.11},
+            {"Sample": "Sample_C_500C", "Peak #": 1, "2θ (°)": 26.2, "FWHM (°)": 0.12},
+        ]
+        figure = HTMLReporter.build_trend_figure(
+            pd.DataFrame(rows),
+            ["Sample_A_300C", "Sample_B_400C", "Sample_C_500C"],
+            lambda n: n.split("_")[1],
+        )
+        assert isinstance(figure, str)
+        assert len(figure) > 0
