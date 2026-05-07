@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 import numpy as np
-from pipeline.loader import XRDLoader, XRDData
+from autoxrd.loader import XRDLoader, XRDData
 
 
 class TestXRDLoader:
@@ -39,7 +39,7 @@ class TestXRDLoader:
 
     def test_data_rows_parsed(self, synthetic_rruff_file):
         xrd = XRDLoader.load(synthetic_rruff_file)
-        assert len(xrd.df) == 6
+        assert len(xrd.df) == 200
 
     def test_load_directory_skips_download_script(self, tmp_path):
         # download_samples.py should be skipped

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
-from lmfit import Parameters
+from tqdm import tqdm
 from lmfit.models import PseudoVoigtModel, ConstantModel
 
 from .loader import XRDData
@@ -19,29 +19,18 @@ class FitResult:
     bic: float
     n_peaks: int
     wavelength: float
-    x_fit: np.ndarray = None      # subsampled 2θ array used for fitting
-    y_fit: np.ndarray = None      # subsampled intensity array used for fitting
 
 
 class XRDFitter:
-    MAX_PEAKS = 8
-    MAX_POINTS = 600  # subsample RRUFF's 8500-point scans for speed
+    MAX_PEAKS = 15
 
     def __init__(self, prominence: float = 8.0, min_distance_deg: float = 0.5):
         self.prominence = prominence
         self.min_distance_deg = min_distance_deg
 
-    @staticmethod
-    def _subsample(x: np.ndarray, y: np.ndarray, max_pts: int) -> tuple[np.ndarray, np.ndarray]:
-        if len(x) <= max_pts:
-            return x, y
-        stride = len(x) // max_pts
-        return x[::stride], y[::stride]
-
     def fit_sample(self, xrd: XRDData) -> FitResult:
-        x_raw = xrd.df["two_theta"].values
-        y_raw = xrd.df["intensity"].values
-        x, y = self._subsample(x_raw, y_raw, self.MAX_POINTS)
+        x = xrd.df["two_theta"].values
+        y = xrd.df["intensity"].values
 
         dx = np.mean(np.diff(x)) if len(x) > 1 else 0.02
         min_dist_pts = max(1, int(self.min_distance_deg / dx))
@@ -51,6 +40,13 @@ class XRDFitter:
         )
 
         if len(peak_indices) == 0:
+            # Retry at half prominence (catches broad low-intensity peaks like Kaolinite).
+            peak_indices, props = find_peaks(
+                y, prominence=self.prominence / 2, distance=min_dist_pts
+            )
+        if len(peak_indices) == 0:
+            # Last resort: global max. props stays empty so the cap block
+            # below uses raw intensity as a proxy — safe for one peak.
             peak_indices = np.array([int(np.argmax(y))])
             props = {}
 
@@ -91,22 +87,21 @@ class XRDFitter:
             bic=float(result.bic),
             n_peaks=len(peak_indices),
             wavelength=xrd.wavelength,
-            x_fit=x,
-            y_fit=y,
         )
 
     def fit_batch(
         self, samples: dict[str, XRDData], progress: bool = True
     ) -> dict[str, FitResult]:
+        # Failed samples are excluded from results entirely (not stored as None).
+        # Callers should compare len(results) vs len(samples) if completeness matters.
         results: dict[str, FitResult] = {}
         items = list(samples.items())
-        for i, (name, xrd) in enumerate(items):
-            if progress:
-                print(f"  [{i+1}/{len(items)}] Fitting {name}...")
+        it = tqdm(items, desc="Fitting", unit="sample") if progress else items
+        for name, xrd in it:
             try:
                 results[name] = self.fit_sample(xrd)
             except Exception as exc:
-                print(f"  WARNING: {name} failed — {exc}")
+                tqdm.write(f"  WARNING: {name} failed — {exc}")
         return results
 
     @staticmethod
@@ -118,14 +113,14 @@ class XRDFitter:
             if amp_key not in result.params:
                 continue
             amp_val = result.params[amp_key].value
+            fwhm_key = f"p{i}_fwhm"
+            if fwhm_key not in result.params:
+                continue
             if amp_val > best_amp:
                 best_amp = amp_val
-                sigma = result.params[f"p{i}_sigma"].value
-                # lmfit PseudoVoigt: fwhm = 2*sigma*sqrt(2*ln(2)) ≈ 2.3548*sigma
-                fwhm = sigma * 2.3548
                 best = {
                     "center": result.params[f"p{i}_center"].value,
-                    "fwhm": fwhm,
+                    "fwhm": result.params[fwhm_key].value,
                     "amplitude": amp_val,
                     "eta": result.params[f"p{i}_fraction"].value,
                 }

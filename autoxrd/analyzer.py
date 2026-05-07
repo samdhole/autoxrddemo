@@ -9,8 +9,9 @@ from .fitter import FitResult
 class XRDAnalyzer:
     K_SCHERRER = 0.9
     ANGSTROM_TO_NM = 0.1
-    CRYSTALLITE_SIZE_CAP_NM = 500.0
-    POOR_FIT_R2_THRESHOLD = 0.95
+    CRYSTALLITE_SIZE_CAP_NM = 200.0
+    POOR_FIT_R2_THRESHOLD = 0.90
+    REVIEW_R2_THRESHOLD = 0.95
     ZSCORE_THRESHOLD = 2.5
 
     @staticmethod
@@ -68,10 +69,11 @@ class XRDAnalyzer:
         fwhm_vals = df["FWHM (°)"].fillna(df["FWHM (°)"].median())
         size_vals = df["Crystallite Size (nm)"].fillna(df["Crystallite Size (nm)"].median())
 
-        # Z-score flags (spec requirement)
+        # Z-score flags (spec requirement).
+        # nan_to_num guards against scipy returning nan on constant-valued columns.
         if len(fwhm_vals) > 1:
-            fwhm_z = stats.zscore(fwhm_vals)
-            size_z = stats.zscore(size_vals)
+            fwhm_z = np.nan_to_num(stats.zscore(fwhm_vals), nan=0.0)
+            size_z = np.nan_to_num(stats.zscore(size_vals), nan=0.0)
         else:
             fwhm_z = np.zeros(len(fwhm_vals))
             size_z = np.zeros(len(size_vals))
@@ -88,12 +90,18 @@ class XRDAnalyzer:
         z_flags, iqr_flags = [], []
         for i in range(len(df)):
             parts = []
-            if df.iloc[i]["R²"] < cls.POOR_FIT_R2_THRESHOLD:
+            r2_val = df.iloc[i]["R²"]
+            if r2_val < cls.POOR_FIT_R2_THRESHOLD:
                 parts.append("Poor fit")
+            elif r2_val < cls.REVIEW_R2_THRESHOLD:
+                parts.append("Review suggested")
             if abs(fwhm_z[i]) > cls.ZSCORE_THRESHOLD:
                 parts.append("Broad peak")
             if abs(size_z[i]) > cls.ZSCORE_THRESHOLD:
                 parts.append("Anomalous grain size")
+            size_val = df.iloc[i]["Crystallite Size (nm)"]
+            if not np.isnan(size_val) and size_val >= cls.CRYSTALLITE_SIZE_CAP_NM:
+                parts.append("Instrument-limited")
             z_flags.append("; ".join(parts))
 
             iqr_parts = []

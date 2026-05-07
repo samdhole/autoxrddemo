@@ -70,7 +70,7 @@
     <strong>Date:</strong> {{ today }} &nbsp;|&nbsp;
     <strong>Analyst:</strong> {{ metadata.analyst }} &nbsp;|&nbsp;
     <strong>Samples:</strong> {{ metadata.sample_count }} &nbsp;|&nbsp;
-    <strong>Method:</strong> lmfit PseudoVoigt · Scherrer K=0.9 · Cu Kα λ=1.54056 Å
+    <strong>Method:</strong> lmfit PseudoVoigt · Scherrer K=0.9 · {{ metadata.instrument if metadata.instrument else "wavelength per file header" }}
   </div>
 </div>
 

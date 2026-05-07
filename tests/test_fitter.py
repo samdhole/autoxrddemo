@@ -1,9 +1,9 @@
-import pytest
+﻿import pytest
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from pipeline.loader import XRDData
-from pipeline.fitter import XRDFitter, FitResult
+from autoxrd.loader import XRDData
+from autoxrd.fitter import XRDFitter, FitResult
 
 
 def make_synthetic_xrd(
@@ -91,5 +91,5 @@ class TestXRDFitter:
             wavelength=1.54056,
         )
         results = XRDFitter().fit_batch({"bad": bad_xrd}, progress=False)
-        # Either succeeded or was caught — no crash
-        assert True
+        # Failed sample must be excluded from results, not stored as None
+        assert "bad" not in results

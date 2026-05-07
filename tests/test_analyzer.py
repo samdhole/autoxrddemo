@@ -1,10 +1,10 @@
-import pytest
+﻿import pytest
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from pipeline.loader import XRDData
-from pipeline.fitter import XRDFitter, FitResult
-from pipeline.analyzer import XRDAnalyzer
+from autoxrd.loader import XRDData
+from autoxrd.fitter import XRDFitter, FitResult
+from autoxrd.analyzer import XRDAnalyzer
 
 
 def make_mock_fit_result(
@@ -40,10 +40,24 @@ class TestScherrerAndDSpacing:
         D = XRDAnalyzer._scherrer(0.20, 28.44, 1.54056)
         assert abs(D - 41.0) < 2.0
 
-    def test_scherrer_capped_at_500nm(self):
-        # Very narrow fwhm → huge crystallite → capped
+    def test_scherrer_capped_at_max(self):
+        # Very narrow fwhm → huge crystallite → capped at CRYSTALLITE_SIZE_CAP_NM
         D = XRDAnalyzer._scherrer(0.001, 28.44, 1.54056)
         assert D == XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM
+
+    def test_scherrer_cap_boundary(self):
+        # Derive the FWHM that yields exactly CRYSTALLITE_SIZE_CAP_NM, then
+        # verify the cap triggers just above and not just below.
+        # D = (K * lam) / (beta_rad * cos(theta))  →  beta_rad = (K * lam) / (D_A * cos(theta))
+        cap = XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM  # 200 nm
+        lam, center, K = 1.54056, 28.44, XRDAnalyzer.K_SCHERRER
+        theta = np.deg2rad(center / 2)
+        beta_rad = (K * lam) / (cap * 10 * np.cos(theta))  # cap*10: nm → Å
+        fwhm_boundary = float(np.rad2deg(beta_rad))
+        # Slightly wider FWHM → smaller crystallite, below cap
+        assert XRDAnalyzer._scherrer(fwhm_boundary * 1.01, center, lam) < cap
+        # Slightly narrower FWHM → larger crystallite, hits cap
+        assert XRDAnalyzer._scherrer(fwhm_boundary * 0.99, center, lam) == cap
 
     def test_scherrer_returns_nan_for_zero_fwhm(self):
         D = XRDAnalyzer._scherrer(0.0, 28.44, 1.54056)

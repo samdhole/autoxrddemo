@@ -42,11 +42,14 @@ Note: R061220/R060345/R061500 not in XY_RAW.zip → substituted R040096/R050456/
 
 ## Run
 ```bash
-# Download RRUFF data (one-time)
-python data/xrd_samples/download_samples.py
+# Data files are committed — no download needed.
+# data/xrd_samples/download_samples.py documents how they were fetched (provenance only).
 
 # Run tests
 pytest tests/
+
+# Run pipeline (CLI)
+python -m pipeline
 
 # Execute notebook
 jupyter nbconvert --to notebook --execute notebooks/xrd_batch_analysis.ipynb
