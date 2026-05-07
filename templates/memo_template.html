@@ -266,6 +266,17 @@
   </div>
 </div>
 
+{# ── Section 3b: Batch Trend Plot ── #}
+{% if trend_figure %}
+<div class="section">
+  <h2>Batch Trend Plot</h2>
+  <p class="section-note">Peak position (left) and FWHM (right) vs. sample index for all detected reflections. Dashed lines show linear fits.</p>
+  <div class="figure-card">
+    <img src="data:image/png;base64,{{ trend_figure }}" alt="Peak tracking across batch">
+  </div>
+</div>
+{% endif %}
+
 {# ── Section 4: Decision Implication ── #}
 <div class="section">
   <h2>Decision Implication</h2>

@@ -38,6 +38,17 @@ class HTMLReporter:
 
         table_html = self._style_table(summary_table)
 
+        # Trend figure — requires peak_table and at least 2 samples to be meaningful
+        trend_figure = None
+        if peak_table is not None and not peak_table.empty and len(fit_results) >= 2:
+            sample_order = list(fit_results.keys())
+            try:
+                from .analyzer import XRDAnalyzer
+                trend_models = XRDAnalyzer.build_trend_model(peak_table, sample_order)
+                trend_figure = self.build_trend_figure(peak_table, sample_order, trend_models=trend_models)
+            except Exception:
+                pass
+
         # Guard up-front: empty table or schema mismatch should not crash the renderer.
         has_flag = "Flag" in summary_table.columns
         has_r2 = "R²" in summary_table.columns
@@ -120,6 +131,7 @@ class HTMLReporter:
             process_signal=process_signal,
             decision_implication=decision_implication,
             validation_notes=validation_notes,
+            trend_figure=trend_figure,
             table_html=table_html,
             peak_table_html=peak_table_html,
             figures=figures,
