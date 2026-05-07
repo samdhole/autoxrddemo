@@ -242,7 +242,7 @@ class XRDFitter:
         c0 = float(x[peak_idx])
         params["p_center"].set(value=c0, min=c0 - 0.3, max=c0 + 0.3)
         params["p_amplitude"].set(value=float(yc.max() - yc.min()) * 0.4, min=0)
-        sigma_init = warm_sigma if warm_sigma is not None else 0.05
+        sigma_init = float(np.clip(warm_sigma, 0.005, 0.5)) if warm_sigma is not None else 0.05
         params["p_sigma"].set(value=sigma_init, min=0.005, max=0.5)
         params["p_fraction"].set(value=0.2, min=0.0, max=1.0)
 
