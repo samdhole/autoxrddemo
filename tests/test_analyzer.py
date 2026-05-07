@@ -171,6 +171,60 @@ class TestBuildPeakTable:
         assert len(table) == fr1.n_peaks + fr2.n_peaks
 
 
+class TestBuildTrendModel:
+    def _make_peak_table(self) -> pd.DataFrame:
+        rows = []
+        for i, sample in enumerate(["S1", "S2", "S3", "S4", "S5"]):
+            rows.append({
+                "Sample": sample, "Peak #": 1,
+                "2θ (°)": 26.65, "FWHM (°)": 0.08 + i * 0.03,
+            })
+            rows.append({
+                "Sample": sample, "Peak #": 2,
+                "2θ (°)": 36.50, "FWHM (°)": 0.10 + i * 0.02,
+            })
+        return pd.DataFrame(rows)
+
+    def test_schema(self):
+        peak_table = self._make_peak_table()
+        models = XRDAnalyzer.build_trend_model(
+            peak_table, ["S1", "S2", "S3", "S4", "S5"]
+        )
+        required = {
+            "Peak #", "Center (°)", "N_obs",
+            "Position slope (°/sample)", "Position R²",
+            "FWHM slope (°/sample)", "FWHM R²",
+        }
+        assert required <= set(models.columns)
+
+    def test_row_count(self):
+        peak_table = self._make_peak_table()
+        models = XRDAnalyzer.build_trend_model(
+            peak_table, ["S1", "S2", "S3", "S4", "S5"]
+        )
+        assert len(models) == 2  # two peak families
+
+    def test_fwhm_slope_positive_for_increasing_fwhm(self):
+        peak_table = self._make_peak_table()
+        models = XRDAnalyzer.build_trend_model(
+            peak_table, ["S1", "S2", "S3", "S4", "S5"]
+        )
+        row = models[models["Peak #"] == 1].iloc[0]
+        assert row["FWHM slope (°/sample)"] > 0
+
+    def test_min_obs_produces_nan(self):
+        # Only 2 samples for Peak #1 — below threshold of 3
+        rows = [
+            {"Sample": "S1", "Peak #": 1, "2θ (°)": 26.65, "FWHM (°)": 0.08},
+            {"Sample": "S2", "Peak #": 1, "2θ (°)": 26.65, "FWHM (°)": 0.10},
+        ]
+        models = XRDAnalyzer.build_trend_model(
+            pd.DataFrame(rows), ["S1", "S2"]
+        )
+        assert np.isnan(models.iloc[0]["FWHM slope (°/sample)"])
+        assert models.iloc[0]["N_obs"] == 2
+
+
 class TestParsePhase:
     def test_default_splits_on_double_underscore(self):
         fr = make_mock_fit_result(name="Quartz__R040031")
