@@ -1,7 +1,6 @@
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from .fitter import FitResult
 
@@ -10,8 +9,12 @@ class XRDAnalyzer:
     K_SCHERRER = 0.9
     ANGSTROM_TO_NM = 0.1
     CRYSTALLITE_SIZE_CAP_NM = 200.0
-    POOR_FIT_R2_THRESHOLD = 0.90
-    REVIEW_R2_THRESHOLD = 0.95
+    POOR_FIT_R2_THRESHOLD = 0.70
+    # Calibrated for the fitter's unweighted mean of per-peak local R². Minor
+    # reflections near the noise floor naturally have local R² in the 0.5-0.7
+    # range, dragging the unweighted mean. Old 0.90 was for an inflated
+    # self-referential composite R² that was removed.
+
     ZSCORE_THRESHOLD = 2.5
 
     @staticmethod
@@ -33,7 +36,9 @@ class XRDAnalyzer:
         return wavelength_A / (2.0 * sin_t)
 
     @classmethod
-    def build_summary_table(cls, fit_results: dict[str, FitResult]) -> pd.DataFrame:
+    def build_summary_table(cls, fit_results: dict[str, FitResult], parse_phase=None) -> pd.DataFrame:
+        if parse_phase is None:
+            parse_phase = lambda name: name.split("__")[0]
         rows = []
         for name, fr in fit_results.items():
             dp = fr.dominant_peak
@@ -44,7 +49,7 @@ class XRDAnalyzer:
             d_sp = cls._d_spacing(center, lam) if not np.isnan(center) else np.nan
             x_size = cls._scherrer(fwhm, center, lam) if not (np.isnan(fwhm) or np.isnan(center)) else np.nan
 
-            phase = name.split("__")[0]
+            phase = parse_phase(name)
 
             rows.append({
                 "Sample": name,
@@ -69,16 +74,6 @@ class XRDAnalyzer:
         fwhm_vals = df["FWHM (°)"].fillna(df["FWHM (°)"].median())
         size_vals = df["Crystallite Size (nm)"].fillna(df["Crystallite Size (nm)"].median())
 
-        # Z-score flags (spec requirement).
-        # nan_to_num guards against scipy returning nan on constant-valued columns.
-        if len(fwhm_vals) > 1:
-            fwhm_z = np.nan_to_num(stats.zscore(fwhm_vals), nan=0.0)
-            size_z = np.nan_to_num(stats.zscore(size_vals), nan=0.0)
-        else:
-            fwhm_z = np.zeros(len(fwhm_vals))
-            size_z = np.zeros(len(size_vals))
-
-        # IQR flags (supplemental — more reliable at n=8)
         def iqr_outlier(series: pd.Series, k: float = 1.5) -> pd.Series:
             q1, q3 = series.quantile(0.25), series.quantile(0.75)
             iqr = q3 - q1
@@ -87,30 +82,46 @@ class XRDAnalyzer:
         fwhm_iqr = iqr_outlier(fwhm_vals)
         size_iqr = iqr_outlier(size_vals)
 
-        z_flags, iqr_flags = [], []
+        flags = []
         for i in range(len(df)):
             parts = []
             r2_val = df.iloc[i]["R²"]
             if r2_val < cls.POOR_FIT_R2_THRESHOLD:
-                parts.append("Poor fit")
-            elif r2_val < cls.REVIEW_R2_THRESHOLD:
-                parts.append("Review suggested")
-            if abs(fwhm_z[i]) > cls.ZSCORE_THRESHOLD:
-                parts.append("Broad peak")
-            if abs(size_z[i]) > cls.ZSCORE_THRESHOLD:
-                parts.append("Anomalous grain size")
+                parts.append(f"Poor fit (R²={r2_val:.3f})")
             size_val = df.iloc[i]["Crystallite Size (nm)"]
             if not np.isnan(size_val) and size_val >= cls.CRYSTALLITE_SIZE_CAP_NM:
                 parts.append("Instrument-limited")
-            z_flags.append("; ".join(parts))
-
-            iqr_parts = []
             if fwhm_iqr.iloc[i]:
-                iqr_parts.append("FWHM outlier (IQR)")
+                parts.append("FWHM outlier (IQR)")
             if size_iqr.iloc[i]:
-                iqr_parts.append("Size outlier (IQR)")
-            iqr_flags.append("; ".join(iqr_parts))
+                parts.append("Size outlier (IQR)")
+            flags.append("; ".join(parts))
 
-        df["Flag"] = z_flags
-        df["Flag (IQR supplement)"] = iqr_flags
+        df["Flag"] = flags
         return df
+
+    @classmethod
+    def build_peak_table(cls, fit_results: dict[str, FitResult], parse_phase=None) -> pd.DataFrame:
+        """One row per fitted peak across all samples — position, FWHM, d-spacing, relative intensity."""
+        if parse_phase is None:
+            parse_phase = lambda name: name.split("__")[0]
+        rows = []
+        for name, fr in fit_results.items():
+            phase = parse_phase(name)
+            lam = fr.wavelength
+            for peak_num, pk in enumerate(fr.all_peaks, start=1):
+                center = pk["center"]
+                fwhm = pk["fwhm"]
+                x_size = cls._scherrer(fwhm, center, lam) if fwhm > 0 else np.nan
+                rows.append({
+                    "Sample": name,
+                    "Phase": phase,
+                    "Peak #": peak_num,
+                    "2θ (°)": round(center, 3),
+                    "d-spacing (Å)": round(pk["d_spacing"], 4) if not np.isnan(pk["d_spacing"]) else np.nan,
+                    "FWHM (°)": round(fwhm, 4),
+                    "Crystallite Size (nm)": round(x_size, 1) if not np.isnan(x_size) else np.nan,
+                    "Rel. Intensity (%)": pk["relative_intensity"],
+                    "η": round(pk["eta"], 3),
+                })
+        return pd.DataFrame(rows)

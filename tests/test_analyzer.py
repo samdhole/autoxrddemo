@@ -14,10 +14,18 @@ def make_mock_fit_result(
     r_squared=0.98,
     wavelength=1.54056,
 ) -> FitResult:
+    all_peaks = [
+        {"center": center, "fwhm": fwhm, "amplitude": 80.0, "eta": 0.5,
+         "d_spacing": wavelength / (2.0 * np.sin(np.deg2rad(center / 2.0))),
+         "relative_intensity": 100.0},
+        {"center": center + 3.0, "fwhm": fwhm, "amplitude": 40.0, "eta": 0.5,
+         "d_spacing": wavelength / (2.0 * np.sin(np.deg2rad((center + 3.0) / 2.0))),
+         "relative_intensity": 50.0},
+    ]
     return FitResult(
         name=name,
-        lmfit_result=None,
         dominant_peak={"center": center, "fwhm": fwhm, "amplitude": 80.0, "eta": 0.5},
+        all_peaks=all_peaks,
         r_squared=r_squared,
         aic=-100.0,
         bic=-90.0,
@@ -106,7 +114,7 @@ class TestFlagOutliers:
             "d-spacing (Å)": [3.4, 3.1, 3.2, 2.6, 7.2],
             "FWHM (°)": [0.15, 0.16, 0.14, 0.15, 1.50],  # K is outlier
             "Crystallite Size (nm)": [60.0, 58.0, 62.0, 60.0, 6.0],  # K is outlier
-            "R²": [0.98, 0.97, 0.99, 0.96, 0.88],  # K is poor fit
+            "R²": [0.98, 0.97, 0.99, 0.96, 0.55],  # K below POOR_FIT_R2_THRESHOLD (0.70)
             "AIC": [-100.0, -95.0, -110.0, -98.0, -80.0],
             "BIC": [-90.0, -85.0, -100.0, -88.0, -70.0],
             "N_peaks": [3, 4, 3, 5, 2],
@@ -122,7 +130,7 @@ class TestFlagOutliers:
         table = self._make_table()
         result = XRDAnalyzer.flag_outliers(table)
         assert "Flag" in result.columns
-        assert "Flag (IQR supplement)" in result.columns
+        assert "Flag (IQR supplement)" not in result.columns
 
     def test_no_false_positives_on_uniform_data(self):
         # All values identical — no outliers should be flagged
@@ -141,3 +149,46 @@ class TestFlagOutliers:
         })
         result = XRDAnalyzer.flag_outliers(df)
         assert all(result["Flag"] == "")
+
+
+class TestBuildPeakTable:
+    def test_returns_dataframe(self):
+        fr = make_mock_fit_result()
+        table = XRDAnalyzer.build_peak_table({"TestSample": fr})
+        assert isinstance(table, pd.DataFrame)
+
+    def test_has_correct_columns(self):
+        fr = make_mock_fit_result()
+        table = XRDAnalyzer.build_peak_table({"TestSample": fr})
+        expected = {"Sample", "Phase", "Peak #", "2θ (°)", "d-spacing (Å)",
+                    "FWHM (°)", "Crystallite Size (nm)", "Rel. Intensity (%)", "η"}
+        assert expected <= set(table.columns)
+
+    def test_row_count_matches_total_peaks(self):
+        fr1 = make_mock_fit_result(name="A")
+        fr2 = make_mock_fit_result(name="B")
+        table = XRDAnalyzer.build_peak_table({"A": fr1, "B": fr2})
+        assert len(table) == fr1.n_peaks + fr2.n_peaks
+
+
+class TestParsePhase:
+    def test_default_splits_on_double_underscore(self):
+        fr = make_mock_fit_result(name="Quartz__R040031")
+        table = XRDAnalyzer.build_summary_table({"Quartz__R040031": fr})
+        assert table.iloc[0]["Phase"] == "Quartz"
+
+    def test_custom_parse_phase_summary_table(self):
+        fr = make_mock_fit_result(name="Sample_A_300C")
+        table = XRDAnalyzer.build_summary_table(
+            {"Sample_A_300C": fr},
+            parse_phase=lambda n: n,
+        )
+        assert table.iloc[0]["Phase"] == "Sample_A_300C"
+
+    def test_custom_parse_phase_peak_table(self):
+        fr = make_mock_fit_result(name="Sample_B_400C")
+        table = XRDAnalyzer.build_peak_table(
+            {"Sample_B_400C": fr},
+            parse_phase=lambda n: n.split("_")[1],
+        )
+        assert table.iloc[0]["Phase"] == "B"
