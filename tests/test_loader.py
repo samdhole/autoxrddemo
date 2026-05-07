@@ -56,6 +56,13 @@ class TestXRDLoader:
         with pytest.raises(ValueError, match="No XRD data rows found"):
             XRDLoader.load(path)
 
+    def test_load_directory_propagates_malformed_comment_only_file(self, tmp_path):
+        (tmp_path / "good.txt").write_text("##NAMES=Good\n26.0, 100.0\n")
+        (tmp_path / "bad.txt").write_text("##NAMES=Bad\n# all comments\n")
+
+        with pytest.raises(ValueError, match="No XRD data rows found"):
+            XRDLoader.load_directory(tmp_path)
+
     def test_load_directory_returns_one_entry_per_txt_file(self, tmp_path):
         (tmp_path / "A.txt").write_text("##NAMES=A\n26.0, 100.0\n")
         (tmp_path / "B.txt").write_text("##NAMES=B\n27.0, 50.0\n")

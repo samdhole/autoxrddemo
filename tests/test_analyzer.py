@@ -116,6 +116,25 @@ class TestBuildSummaryTable:
         assert list(table.columns) == expected
         assert table.empty
 
+    def test_zero_peak_fit_result_builds_nan_summary_row(self):
+        fr = FitResult(
+            name="no_peaks",
+            dominant_peak={"center": np.nan, "fwhm": np.nan, "amplitude": np.nan, "eta": np.nan},
+            all_peaks=[],
+            r_squared=0.0,
+            aic=0.0,
+            bic=0.0,
+            n_peaks=0,
+            wavelength=1.54056,
+        )
+
+        table = XRDAnalyzer.build_summary_table({"no_peaks": fr})
+
+        assert len(table) == 1
+        assert table.iloc[0]["N_peaks"] == 0
+        assert np.isnan(table.iloc[0]["2θ (°)"])
+        assert np.isnan(table.iloc[0]["FWHM (°)"])
+
 
 class TestFlagOutliers:
     def _make_table(self) -> pd.DataFrame:
@@ -173,6 +192,38 @@ class TestFlagOutliers:
         result = XRDAnalyzer.flag_outliers(df)
         assert len(result) == 1
         assert "IQR" not in result.iloc[0]["Flag"]
+
+    def test_single_row_nan_fwhm_and_size_do_not_flag_iqr(self):
+        df = self._make_table().iloc[[0]].copy()
+        df.loc[df.index[0], "FWHM (°)"] = np.nan
+        df.loc[df.index[0], "Crystallite Size (nm)"] = np.nan
+
+        result = XRDAnalyzer.flag_outliers(df)
+
+        assert len(result) == 1
+        assert result.iloc[0]["Flag"] == ""
+
+
+class TestHTMLReporter:
+    def test_style_table_accepts_empty_r2_dataframe(self):
+        html = HTMLReporter(Path("."))._style_table(pd.DataFrame(columns=["R²"]))
+
+        assert "xrd-summary-table" in html
+
+    def test_render_uses_only_available_figures_for_missing_xrd_data(self):
+        fr = make_mock_fit_result(name="missing_from_xrd")
+        summary = XRDAnalyzer.build_summary_table({"missing_from_xrd": fr})
+        reporter = HTMLReporter(Path(__file__).resolve().parent.parent / "templates")
+
+        html = reporter.render(
+            summary_table=summary,
+            fit_results={"missing_from_xrd": fr},
+            xrd_data={},
+            metadata={"title": "Memo", "analyst": "A", "sample_count": 1},
+        )
+
+        assert "missing_from_xrd" in html
+        assert "data:image/png;base64" not in html
 
 
 class TestBuildPeakTable:
