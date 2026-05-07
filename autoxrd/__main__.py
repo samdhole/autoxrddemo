@@ -15,6 +15,12 @@ OUTPUT_DIR = Path(__file__).parent.parent / "output" / "reports"
 OUTPUT_FILE = OUTPUT_DIR / "xrd_memo.html"
 
 
+def parse_phase(name: str) -> str:
+    if name.startswith("Quartz_Anneal_"):
+        return "Quartz"
+    return name.split("__")[0]
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -25,7 +31,8 @@ def main() -> None:
 
     print("Loading samples...")
     samples = XRDLoader.load_directory(DATA_DIR)
-    assert len(samples) > 0, f"No .txt files found in {DATA_DIR} — run data/xrd_samples/download_samples.py first"
+    if not samples:
+        raise RuntimeError(f"No .txt files found in {DATA_DIR} — run data/xrd_samples/download_samples.py first")
     print(f"  Loaded {len(samples)} samples")
 
     print("Batch fitting...")
@@ -36,9 +43,9 @@ def main() -> None:
     print(f"  Fitted {len(fit_results)} samples in {t2 - t1:.1f}s")
 
     print("Building summary...")
-    summary = XRDAnalyzer.build_summary_table(fit_results)
+    summary = XRDAnalyzer.build_summary_table(fit_results, parse_phase=parse_phase)
     summary = XRDAnalyzer.flag_outliers(summary)
-    peak_table = XRDAnalyzer.build_peak_table(fit_results)
+    peak_table = XRDAnalyzer.build_peak_table(fit_results, parse_phase=parse_phase)
 
     print("Rendering HTML memo...")
     reporter = HTMLReporter(TEMPLATE_DIR)
@@ -47,10 +54,13 @@ def main() -> None:
         fit_results=fit_results,
         xrd_data=samples,
         metadata={
-            "title": "XRD Batch Analysis — Technical Memo",
+            "title": "XRD Batch Analysis — Decision Memo",
             "analyst": "Automated Pipeline · Sam Dhole",
             "instrument": "RRUFF database · wavelength per file header (default Cu Kα λ=1.54056 Å)",
             "sample_count": len(samples),
+            "portfolio_context": (
+                "This portfolio demo turns repeat materials-characterization data into a decision-ready technical memo."
+            ),
         },
         peak_table=peak_table,
     )

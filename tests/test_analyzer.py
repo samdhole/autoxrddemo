@@ -210,6 +210,52 @@ class TestHTMLReporter:
 
         assert "xrd-summary-table" in html
 
+    def test_render_includes_buyer_facing_process_signal(self):
+        results = {
+            "Sample_01": make_mock_fit_result(name="Sample_01", center=26.65, fwhm=0.08, r_squared=0.92),
+            "Sample_02": make_mock_fit_result(name="Sample_02", center=26.65, fwhm=0.14, r_squared=0.93),
+            "Sample_03": make_mock_fit_result(name="Sample_03", center=26.65, fwhm=0.22, r_squared=0.91),
+        }
+        summary = XRDAnalyzer.flag_outliers(XRDAnalyzer.build_summary_table(results, parse_phase=lambda n: n))
+        reporter = HTMLReporter(Path(__file__).resolve().parent.parent / "templates")
+
+        html = reporter.render(
+            summary_table=summary,
+            fit_results=results,
+            xrd_data={},
+            metadata={"title": "Memo", "analyst": "A", "sample_count": 3},
+        )
+
+        assert "Process Signal" in html
+        assert "Decision Implication" in html
+        assert "Validation Notes" in html
+        assert "FWHM broadens from 0.0800° to 0.2200°" in html
+        assert "dominant reflection remains position-stable" in html
+        assert "scientist time" in html
+
+    def test_render_escapes_untrusted_metadata_and_sample_text(self):
+        malicious_name = '<script>alert("sample")</script>'
+        fr = make_mock_fit_result(name=malicious_name)
+        summary = XRDAnalyzer.build_summary_table({malicious_name: fr})
+        summary = XRDAnalyzer.flag_outliers(summary)
+        reporter = HTMLReporter(Path(__file__).resolve().parent.parent / "templates")
+
+        html = reporter.render(
+            summary_table=summary,
+            fit_results={malicious_name: fr},
+            xrd_data={},
+            metadata={
+                "title": '<script>alert("title")</script>',
+                "analyst": '<img src=x onerror=alert("analyst")>',
+                "sample_count": 1,
+            },
+        )
+
+        assert "<script>" not in html
+        assert "<img src=x" not in html
+        assert "&lt;script&gt;" in html
+        assert "&lt;img src=x" in html
+
     def test_render_uses_only_available_figures_for_missing_xrd_data(self):
         fr = make_mock_fit_result(name="missing_from_xrd")
         summary = XRDAnalyzer.build_summary_table({"missing_from_xrd": fr})

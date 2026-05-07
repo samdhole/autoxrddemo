@@ -197,6 +197,23 @@ class TestXRDFitter:
         assert result.r_squared == 0.0
         assert set(result.dominant_peak.keys()) == {"center", "fwhm", "amplitude", "eta"}
 
+    def test_all_optimizer_failures_are_counted(self, monkeypatch):
+        xrd = make_synthetic_xrd()
+        fitter = XRDFitter()
+
+        def two_detected_peaks(x, y):
+            return np.array([int(np.argmax(y)), int(np.argmax(y)) + 5]), np.zeros_like(y), 0.1
+
+        def always_fail(*_args, **_kwargs):
+            raise RuntimeError("optimizer failed")
+
+        monkeypatch.setattr(fitter, "_detect_peaks", two_detected_peaks)
+        monkeypatch.setattr(fitter, "_fit_one_roi", always_fail)
+
+        result = fitter.fit_sample(xrd)
+
+        assert result.failed_peak_count == 2
+
     def test_dominant_peak_matches_peak_with_largest_amplitude(self):
         xrd = make_synthetic_xrd(peak_centers=(26.65, 31.40), noise_level=0.0)
         result = XRDFitter().fit_sample(xrd)

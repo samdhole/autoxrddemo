@@ -56,8 +56,8 @@ class XRDLoader:
         # Resample to max_points via uniform stride; 600 pts is sufficient for
         # PseudoVoigt peak fitting and keeps fit time under ~2s per sample.
         if len(df) > XRDLoader.MAX_POINTS:
-            step = len(df) // XRDLoader.MAX_POINTS
-            df = df.iloc[::step].reset_index(drop=True)
+            keep = np.linspace(0, len(df) - 1, XRDLoader.MAX_POINTS, dtype=int)
+            df = df.iloc[keep].reset_index(drop=True)
 
         # Try multiple likely wavelength field names
         wl_raw = (

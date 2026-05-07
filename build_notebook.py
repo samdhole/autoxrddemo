@@ -17,18 +17,20 @@ def code(src):
                   "outputs": [], "source": src.splitlines(keepends=True)})
 
 
-md("""# XRD Batch Analysis to Technical Memo
-### Same-material batch characterization · samdhole.github.io
+md("""# Scientific Data to Decision-Ready Technical Memo
+### Same-material XRD batch characterization · samdhole.github.io
 
 ---
 
 ## The Real-World Use Case
 
-A characterization lab runs 8 samples of the same material from a process variation study (annealing temperatures, milling times, deposition conditions). Each XRD pattern needs to be peak-fit individually, the same reflection tracked across all 8 samples, and a summary memo delivered to the process engineer.
+A characterization lab runs 8 samples of the same material from a process variation study (annealing temperatures, milling times, deposition conditions). Each XRD pattern needs to be peak-fit individually, the same reflection tracked across all 8 samples, and a technical memo delivered to the process engineer.
 
 **Manual workflow:** open each pattern in JADE/HighScore/EVA, identify peaks by eye, fit profile functions, record FWHM and position into a spreadsheet, compute d-spacings and Scherrer sizes by hand, write the memo. **~4 hours for 8 samples.**
 
-**This pipeline:** load → auto-detect → batch-fit → trend-track → memo. **~20 seconds.**
+**This pipeline:** load → auto-detect → batch-fit → extract process signal → produce decision memo. **~20 seconds.**
+
+The buyer-facing artifact is not the code. It is the memo: stable peak position, systematic FWHM change, Scherrer upper-bound trend, fit-quality flags, and validation caveats in a format a technical manager can review.
 
 ---
 
@@ -42,10 +44,10 @@ A characterization lab runs 8 samples of the same material from a process variat
 | 2 | Visualize raw spectra | 2×4 grid |
 | 3 | Single-sample walkthrough | DoG detection + ROI fits annotated |
 | 4 | Batch fit | FitResult per sample (~1.5s each) |
-| 5 | Summary table | Per-sample dominant peak |
+| 5 | Process signal | Position stability, FWHM trend, Scherrer-size trend |
 | 6 | Per-peak table | All ~15 reflections × 8 samples (xrdfit-style) |
 | 7 | Trend plot | Peak position + FWHM vs sample index |
-| 8 | HTML memo | Single-file deliverable |
+| 8 | HTML memo | Single-file decision memo |
 
 **Method:** Difference of Gaussians (xrfit-style) for auto-detect, per-peak ROI lmfit PseudoVoigt, Scherrer K=0.9 (Cu Kα λ=1.54056 Å)
 """)
@@ -94,6 +96,9 @@ for name, xrd in samples.items():
     n = len(xrd.df)
     lo, hi = xrd.df["two_theta"].min(), xrd.df["two_theta"].max()
     print(f"  {name:<25s} {n:5d} pts  lambda={xrd.wavelength:.5f} A  2theta: {lo:.1f}-{hi:.1f} deg")
+
+def parse_phase(name):
+    return "Quartz" if name.startswith("Quartz_Anneal_") else name.split("__")[0]
 """)
 
 md("""## Step 2: Visualize Raw Spectra
@@ -118,7 +123,7 @@ md("""## Step 3: Single-Sample Walkthrough — DoG Detection + ROI Fits
 
 The fitter has two stages.
 
-**Detect (Difference of Gaussians, after `xrfit`):** convolve the spectrum with a narrow Gaussian (preserves peaks, kills noise) and a wide Gaussian (approximates baseline). The bandpass `narrow − wide` isolates peaks against any baseline shape. Threshold = k×MAD(bandpass) on peak-free regions. No prominence knob to tune.
+**Detect (Difference of Gaussians, after `xrfit`):** convolve the spectrum with a narrow Gaussian (preserves peaks, kills noise) and a wide Gaussian (approximates baseline). The bandpass `narrow − wide` isolates candidate peaks from slow baseline structure. Threshold = k×MAD(bandpass) on peak-free regions, reducing hand-tuned settings across repeat batches.
 
 **Fit (per-peak ROI):** crop ±0.25° around each detected peak, fit a single PseudoVoigt + linear background. ~30 ms per peak vs minutes for global multi-peak fits. Quality filter rejects fits with FWHM<0.04°, R²<0.5, or amplitude<0.25.""")
 
@@ -200,12 +205,23 @@ for name, fr in fit_results.items():
     print(f"  {label:<12s}  N_peaks={fr.n_peaks:2d}  R²={fr.r_squared:.4f}  dominant fwhm={fr.dominant_peak['fwhm']:.4f}")
 """)
 
-md("""## Step 5: Per-Sample Summary Table
+md("""## Step 5: Process Signal and Per-Sample Summary
 
-The dominant reflection (largest amplitude) for each sample. This is the top-level view a process engineer reads first.""")
+The memo should not stop at fit parameters. It should state what changed across the batch: did the dominant peak drift, did the FWHM broaden or narrow, and do any samples need review? This is the top-level view a process engineer reads first.""")
 
-code("""summary = XRDAnalyzer.build_summary_table(fit_results)
+code("""summary = XRDAnalyzer.build_summary_table(fit_results, parse_phase=parse_phase)
 summary = XRDAnalyzer.flag_outliers(summary)
+
+center_span = summary["2θ (°)"].max() - summary["2θ (°)"].min()
+fwhm_first = summary.iloc[0]["FWHM (°)"]
+fwhm_last = summary.iloc[-1]["FWHM (°)"]
+size_first = summary.iloc[0]["Crystallite Size (nm)"]
+size_last = summary.iloc[-1]["Crystallite Size (nm)"]
+print("Process signal:")
+print(f"  Dominant peak position span: {center_span:.4f}° 2θ")
+print(f"  FWHM trend: {fwhm_first:.4f}° → {fwhm_last:.4f}°")
+print(f"  Scherrer upper-bound size trend: {size_first:.1f} nm → {size_last:.1f} nm")
+print(f"  Automated review flags: {(summary['Flag'] != '').sum()}")
 
 display(
     summary[["Sample", "2θ (°)", "d-spacing (Å)", "FWHM (°)", "Crystallite Size (nm)", "R²", "Flag"]]
@@ -220,9 +236,9 @@ display(
 
 md("""## Step 6: Per-Peak Parameter Table
 
-All ~15 quartz reflections detected in each sample. This is the table xrdfit produces — center, d-spacing, FWHM, Scherrer crystallite size, relative intensity, η — but xrdfit requires the user to pre-specify peak ranges. Here it's automatic.""")
+All ~15 quartz reflections detected in each sample. This is the audit trail behind the memo: center, d-spacing, FWHM, Scherrer crystallite size, relative intensity, and η for every fitted reflection.""")
 
-code("""peak_table = XRDAnalyzer.build_peak_table(fit_results)
+code("""peak_table = XRDAnalyzer.build_peak_table(fit_results, parse_phase=parse_phase)
 print(f"Peak table: {len(peak_table)} rows ({len(peak_table) // len(fit_results)} avg peaks/sample)\\n")
 
 display(
@@ -275,10 +291,13 @@ memo_html = reporter.render(
     fit_results=fit_results,
     xrd_data=samples,
     metadata={
-        "title": "XRD Batch Analysis — Synthetic Quartz Annealing Series",
+        "title": "XRD Batch Analysis — Synthetic Quartz Decision Memo",
         "analyst": "Automated Pipeline · Sam Dhole",
         "instrument": "Synthetic data (Cu Kα λ=1.54056 Å, ICDD 00-046-1045)",
         "sample_count": len(samples),
+        "portfolio_context": (
+            "This portfolio demo turns repeat materials-characterization data into a decision-ready technical memo."
+        ),
     },
     peak_table=peak_table,
 )
@@ -308,14 +327,14 @@ md("""---
 
 ## Summary
 
-The pipeline auto-detects all reflections in each spectrum (no manual peak picking — `xrdfit` requires you to specify peak ranges; `autoXRD` does CNN classification but no per-peak fits), tracks peak families across the batch, and produces a single-file HTML memo a non-specialist process engineer can read.
+This is a portfolio artifact for scientific automation consulting. The pipeline turns repeat XRD analysis into a decision-ready memo: process signal first, tables and fit panels as review evidence, and validation caveats explicit enough that a scientist can trust the workflow.
 
 **Method stack:**
-- **Detection:** Difference of Gaussians (after `xrfit`/tgdane) — narrow vs. wide Gaussian smoothing isolates peaks against any baseline shape, MAD-noise-thresholded.
+- **Detection:** Difference of Gaussians (after `xrfit`/tgdane) — narrow vs. wide Gaussian smoothing isolates candidate peaks from slow baseline structure, MAD-noise-thresholded.
 - **Fit:** `lmfit` PseudoVoigt + linear background per ROI (~30 ms/peak).
 - **Quality filter:** FWHM, R², amplitude — rejects noise candidates that survived detection.
 - **Trend:** peak families clustered post-hoc; position + FWHM tracked vs sample index.
-- **Memo:** Jinja2 + matplotlib (base64-embedded), single self-contained HTML file.
+- **Memo:** process signal, decision implication, validation notes, tables, and base64-embedded review figures in one self-contained HTML file.
 
 ---
 *Generated by autoxrd · samdhole.github.io*

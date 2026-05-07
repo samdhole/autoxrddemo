@@ -72,3 +72,14 @@ class TestXRDLoader:
 
         assert set(result) == {"A", "B"}
         assert len(result) == 2
+
+    def test_resampling_enforces_max_points_for_just_over_limit(self, tmp_path):
+        path = tmp_path / "dense.txt"
+        rows = ["##NAMES=Dense\n"]
+        for i in range(XRDLoader.MAX_POINTS + 1):
+            rows.append(f"{20.0 + i * 0.01:.4f}, {float(i + 1):.1f}\n")
+        path.write_text("".join(rows), encoding="utf-8")
+
+        xrd = XRDLoader.load(path)
+
+        assert len(xrd.df) <= XRDLoader.MAX_POINTS

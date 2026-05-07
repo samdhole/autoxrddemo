@@ -45,6 +45,7 @@ class FitResult:
     baseline: np.ndarray = field(default_factory=lambda: np.empty(0))
     noise_std: float = 0.0
     detected_peak_count: int = 0  # raw DoG candidates before quality filter
+    failed_peak_count: int = 0  # detected candidates skipped after fit-time errors
 
 
 class XRDFitter:
@@ -79,6 +80,7 @@ class XRDFitter:
         peak_indices, baseline, noise = self._detect_peaks(x, y)
 
         raw_fits = []
+        failed_peak_count = 0
         composite_pv = np.zeros_like(y)
         for idx in peak_indices:
             warm_sigma = None
@@ -96,7 +98,7 @@ class XRDFitter:
                 raw_fits.append(fit)
                 composite_pv += self._evaluate_pv(x, fit)
             except Exception:
-                pass
+                failed_peak_count += 1
 
         # Quality filter — amplitude threshold relative to spectrum's own intensity range
         min_amp = self.MIN_FIT_AMP_FRAC * float(np.nanmax(y)) if len(y) and np.nanmax(y) > 0 else 0.0
@@ -183,6 +185,7 @@ class XRDFitter:
             baseline=baseline,
             noise_std=float(noise),
             detected_peak_count=len(peak_indices),
+            failed_peak_count=failed_peak_count,
         )
 
     def fit_batch(

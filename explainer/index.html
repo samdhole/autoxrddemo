@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>XRD Batch Analysis to Technical Memo · Sam Dhole</title>
+  <title>Scientific Data to Technical Memo · Sam Dhole</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -270,12 +270,12 @@
   <a href="https://samdhole.github.io" class="back-link">← Back to portfolio</a>
 
   <div style="margin-top: 2.5rem;">
-    <p class="eyebrow">Characterization Pipeline</p>
-    <h1>XRD Batch Analysis<br>to Technical Memo</h1>
+    <p class="eyebrow">Materials Characterization Automation</p>
+    <h1>Raw XRD Patterns<br>to Decision-Ready Technical Memo</h1>
     <p class="subtitle">
-      Auto-detects every reflection in 8 same-material XRD patterns, tracks peak
-      position and FWHM trends across the batch, and ships a formatted HTML memo —
-      end-to-end in under 20 seconds.
+      Converts a same-material characterization batch into a reviewable report:
+      dominant peak stability, FWHM trend, Scherrer upper-bound size trend,
+      fit-quality flags, and scientist-review figures in one portable HTML memo.
     </p>
   </div>
 
@@ -283,7 +283,7 @@
 
   <!-- Timing hero -->
   <section class="timing-section">
-    <h2>The before / after</h2>
+    <h2>The buyer problem</h2>
     <div class="timing-grid">
       <div class="timing-card before">
         <span class="timing-number">~4 hrs</span>
@@ -292,7 +292,7 @@
           Open each pattern in JADE / HighScore / EVA.
           Identify reflections by eye. Fit profile per peak.
           Track positions and FWHMs across the batch in a spreadsheet.
-          Write the memo.
+          Write the memo and hope the next batch is reported the same way.
         </div>
       </div>
 
@@ -303,8 +303,8 @@
         <div class="timing-label">
           <strong>This pipeline</strong>
           Load → Auto-detect → Batch-fit → Trend-track → Memo.
-          No manual peak picking. No spreadsheet.
-          Portable HTML memo out.
+          A consistent decision memo comes out with traceable tables,
+          fit overlays, residuals, and validation caveats.
         </div>
       </div>
     </div>
@@ -314,41 +314,41 @@
 
   <!-- What it does -->
   <section>
-    <h2>What it does</h2>
+    <h2>What a buyer gets</h2>
     <ul class="pipeline-steps">
       <li>
         <div class="step-num">1</div>
         <div class="step-content">
-          <strong>Load</strong>
+          <strong>Raw data intake</strong>
           <p>Parses RRUFF-format .txt files with variable-length metadata headers. Reads wavelength from file; defaults to Cu Kα (1.54056 Å).</p>
         </div>
       </li>
       <li>
         <div class="step-num">2</div>
         <div class="step-content">
-          <strong>Auto-detect</strong>
-          <p>Difference of Gaussians (after <em>xrfit</em>): a narrow Gaussian preserves peaks while a wide one approximates baseline. Peak = bandpass exceeds k×MAD-noise. No prominence knob to tune; works against any baseline shape.</p>
+          <strong>Repeatable peak detection</strong>
+          <p>Difference of Gaussians (after <em>xrfit</em>): a narrow Gaussian preserves peaks while a wide one approximates baseline. Peak candidates are selected from an adaptive MAD-noise threshold, reducing hand-tuned settings across repeat batches.</p>
         </div>
       </li>
       <li>
         <div class="step-num">3</div>
         <div class="step-content">
-          <strong>Fit</strong>
-          <p>Per-peak ROI lmfit PseudoVoigt + linear background. ~30 ms per peak vs minutes for global multi-peak fits. Quality filter rejects fits below physical FWHM / R² / amplitude floors.</p>
+          <strong>Scientist-reviewable fits</strong>
+          <p>Per-peak ROI lmfit PseudoVoigt + linear background. Quality filters reject weak or poor fits, and each sample gets an overlay and residual panel for human review.</p>
         </div>
       </li>
       <li>
         <div class="step-num">4</div>
         <div class="step-content">
-          <strong>Track</strong>
-          <p>Same-material batch: clusters peak families across samples by 2θ proximity. Plots peak position and FWHM vs. sample index — the trend a process engineer reads first.</p>
+          <strong>Process signal extraction</strong>
+          <p>Same-material batch: tracks dominant peak position, FWHM, d-spacing, and Scherrer upper-bound size so a process engineer sees whether the batch drifted, broadened, or needs review.</p>
         </div>
       </li>
       <li>
         <div class="step-num">5</div>
         <div class="step-content">
-          <strong>Report</strong>
-          <p>Jinja2 HTML memo with summary table, full per-peak parameter table, trend figure, and base64-embedded sample fits. Single portable file.</p>
+          <strong>Decision memo</strong>
+          <p>Jinja2 HTML memo with process signal, decision implication, validation notes, summary table, full per-peak table, and base64-embedded figures. Single portable file.</p>
         </div>
       </li>
     </ul>
@@ -358,14 +358,14 @@
 
   <!-- The gap -->
   <section>
-    <h2>The gap this fills</h2>
+    <h2>The commercial gap</h2>
     <div class="gap-callout">
       <p>
-        <strong>xrdfit</strong> (Sheffield) requires you to specify peak ranges in advance.
-        <strong>autoXRD</strong> (MIT) is a CNN classifier — no per-peak fits.
-        <strong>HighScore</strong> and <strong>EVA</strong> are commercial GUIs. None
-        produce a deliverable a non-specialist process engineer can act on. This pipeline
-        goes the last mile — from raw diffraction data to a formatted memo with trend plots.
+        Peak fitting is not the whole job. Labs still need the last mile:
+        repeatable batch analysis, validation notes, and a memo a process engineer
+        or technical manager can act on without rebuilding the analysis in a spreadsheet.
+        This demo shows the kind of bespoke automation I build for characterization
+        teams: the scientific method stays visible, but the reporting burden is automated.
       </p>
     </div>
   </section>
@@ -378,7 +378,7 @@
     <div class="tech-grid">
       <div class="tech-card">
         <div class="tech-label">Peak detection</div>
-        <p>Difference of Gaussians + adaptive MAD-noise threshold. Multi-scale, baseline-shape independent, no manual prominence to tune.</p>
+        <p>Difference of Gaussians + adaptive MAD-noise threshold for repeatable candidate detection across similar patterns.</p>
       </div>
       <div class="tech-card">
         <div class="tech-label">Peak fitting</div>
@@ -394,7 +394,7 @@
       </div>
       <div class="tech-card">
         <div class="tech-label">Output</div>
-        <p>Single-file HTML memo: summary table, full per-peak table, trend figure, sample fits — all figures base64-embedded.</p>
+        <p>Single-file HTML memo: process signal, decision implication, validation notes, summary table, full per-peak table, and sample fits.</p>
       </div>
     </div>
   </section>
@@ -409,6 +409,7 @@
       <span class="badge">XRD</span>
       <span class="badge">lmfit</span>
       <span class="badge">Automated reporting</span>
+      <span class="badge">Decision memo</span>
       <span class="badge">Materials</span>
       <span class="badge">Jupyter</span>
       <span class="badge">scipy</span>
@@ -422,8 +423,10 @@
   <section>
     <h2>Explore</h2>
     <div class="actions">
+      <a href="../output/reports/xrd_memo.html"
+         class="btn btn-primary">View Memo</a>
       <a href="https://nbviewer.org/github/samdhole/autoxrddemo/blob/main/notebooks/xrd_batch_analysis.ipynb"
-         class="btn btn-primary" target="_blank" rel="noopener">View Notebook</a>
+         class="btn btn-secondary" target="_blank" rel="noopener">Technical Notebook</a>
       <a href="https://github.com/samdhole/autoxrddemo"
          class="btn btn-secondary" target="_blank" rel="noopener">GitHub →</a>
     </div>
