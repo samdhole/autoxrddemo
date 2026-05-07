@@ -222,3 +222,41 @@ class TestWarmStart:
         assert any(ws is not None for ws in received_warm_sigmas), (
             "No warm_sigma was passed to _fit_one_roi despite matching warm_peaks"
         )
+
+    def test_warm_start_after_failed_sample_uses_last_successful_peaks(self):
+        class RecordingFitter(XRDFitter):
+            def __init__(self):
+                super().__init__()
+                self.calls = []
+
+            def fit_sample(self, xrd, warm_peaks=None):
+                self.calls.append((xrd.name, warm_peaks))
+                if xrd.name == "bad":
+                    raise ValueError("synthetic failure")
+                peaks = [{"center": 26.65, "fwhm": 0.20, "amplitude": 100.0,
+                          "eta": 0.2, "d_spacing": 3.34, "relative_intensity": 100.0}]
+                return FitResult(
+                    name=xrd.name,
+                    dominant_peak={"center": 26.65, "fwhm": 0.20, "amplitude": 100.0, "eta": 0.2},
+                    all_peaks=peaks,
+                    r_squared=0.99,
+                    aic=0.0,
+                    bic=0.0,
+                    n_peaks=1,
+                    wavelength=xrd.wavelength,
+                )
+
+        df = pd.DataFrame({"two_theta": np.linspace(20.0, 30.0, 20), "intensity": np.ones(20)})
+        samples = {
+            name: XRDData(name=name, path=Path(f"{name}.txt"), metadata={}, df=df, wavelength=1.54056)
+            for name in ["first", "bad", "after"]
+        }
+        fitter = RecordingFitter()
+
+        results = fitter.fit_batch(samples, progress=False, warm_start=True)
+
+        assert list(results) == ["first", "after"]
+        assert fitter.calls[0] == ("first", None)
+        assert fitter.calls[1][0] == "bad"
+        assert fitter.calls[1][1] == results["first"].all_peaks
+        assert fitter.calls[2] == ("after", results["first"].all_peaks)

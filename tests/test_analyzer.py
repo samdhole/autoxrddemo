@@ -54,6 +54,10 @@ class TestScherrerAndDSpacing:
         D = XRDAnalyzer._scherrer(0.001, 28.44, 1.54056)
         assert D == XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM
 
+    def test_scherrer_tiny_nonzero_fwhm_hits_instrument_cap(self):
+        D = XRDAnalyzer._scherrer(1e-10, 28.44, 1.54056)
+        assert D == XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM
+
     def test_scherrer_cap_boundary(self):
         # Derive the FWHM that yields exactly CRYSTALLITE_SIZE_CAP_NM, then
         # verify the cap triggers just above and not just below.
@@ -105,6 +109,13 @@ class TestBuildSummaryTable:
         table = XRDAnalyzer.build_summary_table({"s": fr})
         assert abs(table.iloc[0]["R²"] - 0.987) < 0.0001
 
+    def test_empty_fit_results_returns_schema(self):
+        table = XRDAnalyzer.build_summary_table({})
+        expected = ["Sample", "Phase", "2θ (°)", "d-spacing (Å)", "FWHM (°)",
+                    "Crystallite Size (nm)", "R²", "AIC", "BIC", "N_peaks", "Flag"]
+        assert list(table.columns) == expected
+        assert table.empty
+
 
 class TestFlagOutliers:
     def _make_table(self) -> pd.DataFrame:
@@ -150,6 +161,12 @@ class TestFlagOutliers:
         })
         result = XRDAnalyzer.flag_outliers(df)
         assert all(result["Flag"] == "")
+
+    def test_instrument_limited_size_flagged(self):
+        df = self._make_table()
+        df.loc[0, "Crystallite Size (nm)"] = XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM
+        result = XRDAnalyzer.flag_outliers(df)
+        assert "Instrument-limited" in result.loc[0, "Flag"]
 
 
 class TestBuildPeakTable:
@@ -259,6 +276,19 @@ class TestBuildTrendModel:
         assert not np.isnan(models.iloc[0]["Position slope (°/sample)"])
         assert np.isnan(models.iloc[0]["FWHM slope (°/sample)"])
 
+    def test_r_squared_clamped_to_zero_for_pathological_underfit(self, monkeypatch):
+        rows = [
+            {"Sample": "S1", "Peak #": 1, "2θ (°)": 0.0, "FWHM (°)": 0.10},
+            {"Sample": "S2", "Peak #": 1, "2θ (°)": 100.0, "FWHM (°)": 0.11},
+            {"Sample": "S3", "Peak #": 1, "2θ (°)": 0.0, "FWHM (°)": 0.12},
+        ]
+
+        monkeypatch.setattr(np, "polyfit", lambda *_args, **_kwargs: np.array([0.0, 0.0]))
+
+        models = XRDAnalyzer.build_trend_model(pd.DataFrame(rows), ["S1", "S2", "S3"])
+
+        assert models.iloc[0]["Position R²"] == 0.0
+
 
 class TestParsePhase:
     def test_default_splits_on_double_underscore(self):
@@ -341,3 +371,13 @@ class TestParsePhase:
 
         assert isinstance(figure, str)
         assert len(dashed_lines) == 2
+
+    def test_build_trend_figure_accepts_single_sample_batch(self):
+        rows = [
+            {"Sample": "S1", "Peak #": 1, "2θ (°)": 26.0, "FWHM (°)": 0.10},
+        ]
+
+        figure = HTMLReporter.build_trend_figure(pd.DataFrame(rows), ["S1"])
+
+        assert isinstance(figure, str)
+        assert len(figure) > 0

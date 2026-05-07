@@ -22,6 +22,11 @@ class XRDAnalyzer:
 
     ZSCORE_THRESHOLD = 2.5
 
+    SUMMARY_COLUMNS = [
+        "Sample", "Phase", "2θ (°)", "d-spacing (Å)", "FWHM (°)",
+        "Crystallite Size (nm)", "R²", "AIC", "BIC", "N_peaks", "Flag",
+    ]
+
     @staticmethod
     def _scherrer(fwhm_deg: float, center_2theta_deg: float, wavelength_A: float) -> float:
         beta = np.deg2rad(fwhm_deg)
@@ -30,7 +35,14 @@ class XRDAnalyzer:
             return np.nan
         D_A = (XRDAnalyzer.K_SCHERRER * wavelength_A) / (beta * np.cos(theta))
         D_nm = D_A * XRDAnalyzer.ANGSTROM_TO_NM
+        # Sub-resolution nonzero widths are instrument-limited, not literal sizes.
         return min(D_nm, XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM)
+
+    @staticmethod
+    def _bounded_r_squared(ss_res: float, ss_tot: float) -> float:
+        if ss_tot <= 0:
+            return float("nan")
+        return float(np.clip(1.0 - ss_res / ss_tot, 0.0, 1.0))
 
     @staticmethod
     def _d_spacing(center_2theta_deg: float, wavelength_A: float) -> float:
@@ -70,7 +82,7 @@ class XRDAnalyzer:
                 "Flag": "",
             })
 
-        return pd.DataFrame(rows)
+        return pd.DataFrame(rows, columns=cls.SUMMARY_COLUMNS)
 
     @classmethod
     def flag_outliers(cls, table: pd.DataFrame) -> pd.DataFrame:
@@ -181,7 +193,7 @@ class XRDAnalyzer:
                     ss_res_pos = float(np.sum((pv - np.polyval(pos_coeffs, pi)) ** 2))
                     ss_tot_pos = float(np.sum((pv - pv.mean()) ** 2))
                     row["Position slope (°/sample)"] = round(float(pos_coeffs[0]), 6)
-                    row["Position R²"] = round(1.0 - ss_res_pos / ss_tot_pos, 4) if ss_tot_pos > 0 else float("nan")
+                    row["Position R²"] = round(XRDAnalyzer._bounded_r_squared(ss_res_pos, ss_tot_pos), 4)
 
                 fwhm_mask = np.isfinite(fwhms)
                 if fwhm_mask.sum() >= 3:
@@ -190,7 +202,7 @@ class XRDAnalyzer:
                     ss_res_fwhm = float(np.sum((fv - np.polyval(fwhm_coeffs, fi)) ** 2))
                     ss_tot_fwhm = float(np.sum((fv - fv.mean()) ** 2))
                     row["FWHM slope (°/sample)"] = round(float(fwhm_coeffs[0]), 6)
-                    row["FWHM R²"] = round(1.0 - ss_res_fwhm / ss_tot_fwhm, 4) if ss_tot_fwhm > 0 else float("nan")
+                    row["FWHM R²"] = round(XRDAnalyzer._bounded_r_squared(ss_res_fwhm, ss_tot_fwhm), 4)
             rows.append(row)
 
         if not rows:
