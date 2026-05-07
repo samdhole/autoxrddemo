@@ -8,6 +8,7 @@ from .fitter import FitResult
 
 class XRDAnalyzer:
     K_SCHERRER = 0.9
+    ANGSTROM_TO_NM = 0.1
     CRYSTALLITE_SIZE_CAP_NM = 500.0
     POOR_FIT_R2_THRESHOLD = 0.95
     ZSCORE_THRESHOLD = 2.5
@@ -19,7 +20,7 @@ class XRDAnalyzer:
         if beta <= 0 or np.cos(theta) == 0:
             return np.nan
         D_A = (XRDAnalyzer.K_SCHERRER * wavelength_A) / (beta * np.cos(theta))
-        D_nm = D_A / 10.0
+        D_nm = D_A * XRDAnalyzer.ANGSTROM_TO_NM
         return min(D_nm, XRDAnalyzer.CRYSTALLITE_SIZE_CAP_NM)
 
     @staticmethod
