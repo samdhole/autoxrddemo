@@ -16,6 +16,7 @@ class XRDData:
 
 class XRDLoader:
     DEFAULT_WAVELENGTH = 1.54056  # Cu Kα
+    MAX_POINTS = 600
 
     @staticmethod
     def load(path: str | Path, name: str | None = None) -> XRDData:
@@ -46,6 +47,12 @@ class XRDLoader:
         max_i = df["intensity"].max()
         if max_i > 0:
             df["intensity"] = df["intensity"] / max_i * 100.0
+
+        # Resample to max_points via uniform stride; 600 pts is sufficient for
+        # PseudoVoigt peak fitting and keeps fit time under ~2s per sample.
+        if len(df) > XRDLoader.MAX_POINTS:
+            step = len(df) // XRDLoader.MAX_POINTS
+            df = df.iloc[::step].reset_index(drop=True)
 
         # Try multiple likely wavelength field names
         wl_raw = (
