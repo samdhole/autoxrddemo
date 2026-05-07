@@ -220,7 +220,8 @@ class HTMLReporter:
         dashed linear fit lines on each subplot in matching colors.
         """
         if parse_phase is None:
-            parse_phase = lambda s: s.split("__")[0] if "__" in s else s
+            from .analyzer import _default_parse_phase
+            parse_phase = _default_parse_phase
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
 
