@@ -121,11 +121,14 @@ class HTMLReporter:
         ax1.set_ylabel("Intensity (norm.)", fontsize=8)
         ax1.tick_params(labelsize=7)
 
+        # Use subsampled arrays for fit overlay and residuals
+        x_fit = fr.x_fit if fr.x_fit is not None else x
+        y_sub = fr.y_fit if fr.y_fit is not None else y
+
         ax2 = fig.add_subplot(gs[1])
-        ax2.plot(x, y, color="#aaa", lw=0.8, label="Data", zorder=1)
+        ax2.plot(x_fit, y_sub, color="#aaa", lw=0.8, label="Data", zorder=1)
         if fr.lmfit_result is not None:
-            y_fit = fr.lmfit_result.best_fit
-            ax2.plot(x, y_fit, color="#c0392b", lw=1.5, label="Fit", zorder=2)
+            ax2.plot(x_fit, fr.lmfit_result.best_fit, color="#c0392b", lw=1.5, label="Fit", zorder=2)
         ax2.set_title(f"Fit overlay  R²={fr.r_squared:.4f}", fontsize=9)
         ax2.set_xlabel("2θ (°)", fontsize=8)
         ax2.legend(fontsize=7, loc="upper right")
@@ -133,8 +136,7 @@ class HTMLReporter:
 
         ax3 = fig.add_subplot(gs[2])
         if fr.lmfit_result is not None:
-            residuals = fr.lmfit_result.residual
-            ax3.plot(x, residuals, color="#2980b9", lw=0.8)
+            ax3.plot(x_fit, fr.lmfit_result.residual, color="#2980b9", lw=0.8)
             ax3.axhline(0, color="#888", lw=0.6, ls="--")
         ax3.set_title("Residuals", fontsize=9)
         ax3.set_xlabel("2θ (°)", fontsize=8)

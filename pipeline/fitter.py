@@ -19,18 +19,29 @@ class FitResult:
     bic: float
     n_peaks: int
     wavelength: float
+    x_fit: np.ndarray = None      # subsampled 2θ array used for fitting
+    y_fit: np.ndarray = None      # subsampled intensity array used for fitting
 
 
 class XRDFitter:
-    MAX_PEAKS = 15
+    MAX_PEAKS = 8
+    MAX_POINTS = 600  # subsample RRUFF's 8500-point scans for speed
 
-    def __init__(self, prominence: float = 2.0, min_distance_deg: float = 0.5):
+    def __init__(self, prominence: float = 8.0, min_distance_deg: float = 0.5):
         self.prominence = prominence
         self.min_distance_deg = min_distance_deg
 
+    @staticmethod
+    def _subsample(x: np.ndarray, y: np.ndarray, max_pts: int) -> tuple[np.ndarray, np.ndarray]:
+        if len(x) <= max_pts:
+            return x, y
+        stride = len(x) // max_pts
+        return x[::stride], y[::stride]
+
     def fit_sample(self, xrd: XRDData) -> FitResult:
-        x = xrd.df["two_theta"].values
-        y = xrd.df["intensity"].values
+        x_raw = xrd.df["two_theta"].values
+        y_raw = xrd.df["intensity"].values
+        x, y = self._subsample(x_raw, y_raw, self.MAX_POINTS)
 
         dx = np.mean(np.diff(x)) if len(x) > 1 else 0.02
         min_dist_pts = max(1, int(self.min_distance_deg / dx))
@@ -80,6 +91,8 @@ class XRDFitter:
             bic=float(result.bic),
             n_peaks=len(peak_indices),
             wavelength=xrd.wavelength,
+            x_fit=x,
+            y_fit=y,
         )
 
     def fit_batch(
