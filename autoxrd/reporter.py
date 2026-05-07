@@ -147,7 +147,7 @@ class HTMLReporter:
             return {
                 "headline": "No process trend available",
                 "summary": "No process signal could be extracted from the current summary table.",
-                "bullets": ["No valid batch rows were available for trend extraction."],
+                "bullets": [{"label": "Process Signal", "text": "No valid batch rows were available for trend extraction."}],
             }
 
         df = summary_table.dropna(subset=["2θ (°)", "FWHM (°)"]).copy()
@@ -155,7 +155,7 @@ class HTMLReporter:
             return {
                 "headline": "No valid peak trend available",
                 "summary": "No valid dominant-peak trend could be extracted from the current batch.",
-                "bullets": ["Dominant peak position or FWHM values are missing."],
+                "bullets": [{"label": "Process Signal", "text": "Dominant peak position or FWHM values are missing."}],
             }
 
         first = df.iloc[0]
@@ -199,7 +199,11 @@ class HTMLReporter:
         return {
             "headline": "Stable peak position with systematic broadening",
             "summary": f"{position_line} {fwhm_line} {size_line}",
-            "bullets": [position_line, fwhm_line, size_line],
+            "bullets": [
+                {"label": "Peak Position", "text": position_line},
+                {"label": "Peak Width (FWHM)", "text": fwhm_line},
+                {"label": "Crystallite Size (Scherrer)", "text": size_line},
+            ],
         }
 
     @staticmethod

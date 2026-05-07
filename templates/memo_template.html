@@ -259,8 +259,8 @@
   <div class="signal-grid">
     {% for bullet in process_signal.bullets %}
     <div class="signal-card">
-      <div class="signal-label">Signal {{ loop.index }}</div>
-      <p>{{ bullet }}</p>
+      <div class="signal-label">{{ bullet.label }}</div>
+      <p>{{ bullet.text }}</p>
     </div>
     {% endfor %}
   </div>
