@@ -44,6 +44,8 @@ class XRDLoader:
                             pass
 
         df = pd.DataFrame(data_lines, columns=["two_theta", "intensity"])
+        if df.empty:
+            raise ValueError(f"No XRD data rows found in {path}")
         max_i = df["intensity"].max()
         if max_i > 0:
             df["intensity"] = df["intensity"] / max_i * 100.0

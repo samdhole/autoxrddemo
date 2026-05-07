@@ -168,6 +168,12 @@ class TestFlagOutliers:
         result = XRDAnalyzer.flag_outliers(df)
         assert "Instrument-limited" in result.loc[0, "Flag"]
 
+    def test_single_row_iqr_does_not_crash_or_flag_iqr(self):
+        df = self._make_table().iloc[[0]].copy()
+        result = XRDAnalyzer.flag_outliers(df)
+        assert len(result) == 1
+        assert "IQR" not in result.iloc[0]["Flag"]
+
 
 class TestBuildPeakTable:
     def test_returns_dataframe(self):
@@ -187,6 +193,23 @@ class TestBuildPeakTable:
         fr2 = make_mock_fit_result(name="B")
         table = XRDAnalyzer.build_peak_table({"A": fr1, "B": fr2})
         assert len(table) == fr1.n_peaks + fr2.n_peaks
+
+    def test_empty_all_peaks_returns_empty_peak_schema(self):
+        fr = FitResult(
+            name="empty",
+            dominant_peak={"center": np.nan, "fwhm": np.nan, "amplitude": np.nan, "eta": np.nan},
+            all_peaks=[],
+            r_squared=0.0,
+            aic=0.0,
+            bic=0.0,
+            n_peaks=0,
+            wavelength=1.54056,
+        )
+        table = XRDAnalyzer.build_peak_table({"empty": fr})
+        expected = ["Sample", "Phase", "Peak #", "2θ (°)", "d-spacing (Å)",
+                    "FWHM (°)", "Crystallite Size (nm)", "Rel. Intensity (%)", "η"]
+        assert table.empty
+        assert list(table.columns) == expected
 
 
 class TestBuildTrendModel:
@@ -378,6 +401,48 @@ class TestParsePhase:
         ]
 
         figure = HTMLReporter.build_trend_figure(pd.DataFrame(rows), ["S1"])
+
+        assert isinstance(figure, str)
+        assert len(figure) > 0
+
+    def test_build_trend_figure_filters_samples_before_index_mapping(self, monkeypatch):
+        from matplotlib.axes import Axes
+
+        rows = [
+            {"Sample": "S1", "Peak #": 1, "2θ (°)": 26.0, "FWHM (°)": 0.10},
+            {"Sample": "EXTRA", "Peak #": 1, "2θ (°)": 27.0, "FWHM (°)": 0.20},
+        ]
+        plotted_x = []
+        original_plot = Axes.plot
+
+        def spy_plot(self, *args, **kwargs):
+            if len(args) >= 2 and getattr(args[0], "name", None) == "_idx":
+                plotted_x.extend(list(args[0]))
+            return original_plot(self, *args, **kwargs)
+
+        monkeypatch.setattr(Axes, "plot", spy_plot)
+        figure = HTMLReporter.build_trend_figure(pd.DataFrame(rows), ["S1"])
+
+        assert isinstance(figure, str)
+        assert plotted_x == [1, 1]
+        assert not any(pd.isna(x) for x in plotted_x)
+
+
+class TestSampleFigure:
+    def test_empty_fit_arrays_use_dataframe_fallback(self):
+        df = pd.DataFrame({"two_theta": [], "intensity": []})
+        fr = FitResult(
+            name="empty",
+            dominant_peak={"center": np.nan, "fwhm": np.nan, "amplitude": np.nan, "eta": np.nan},
+            all_peaks=[],
+            r_squared=0.0,
+            aic=0.0,
+            bic=0.0,
+            n_peaks=0,
+            wavelength=1.54056,
+        )
+
+        figure = HTMLReporter(Path("."))._build_sample_figure("empty", df, fr)
 
         assert isinstance(figure, str)
         assert len(figure) > 0

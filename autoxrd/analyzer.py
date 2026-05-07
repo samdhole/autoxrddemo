@@ -26,6 +26,10 @@ class XRDAnalyzer:
         "Sample", "Phase", "2θ (°)", "d-spacing (Å)", "FWHM (°)",
         "Crystallite Size (nm)", "R²", "AIC", "BIC", "N_peaks", "Flag",
     ]
+    PEAK_COLUMNS = [
+        "Sample", "Phase", "Peak #", "2θ (°)", "d-spacing (Å)", "FWHM (°)",
+        "Crystallite Size (nm)", "Rel. Intensity (%)", "η",
+    ]
 
     @staticmethod
     def _scherrer(fwhm_deg: float, center_2theta_deg: float, wavelength_A: float) -> float:
@@ -141,7 +145,7 @@ class XRDAnalyzer:
                     "Rel. Intensity (%)": pk["relative_intensity"],
                     "η": round(pk["eta"], 3),
                 })
-        return pd.DataFrame(rows)
+        return pd.DataFrame(rows, columns=cls.PEAK_COLUMNS)
 
     @staticmethod
     def build_trend_model(peak_table: pd.DataFrame, sample_order: list[str]) -> pd.DataFrame:

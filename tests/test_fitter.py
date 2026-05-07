@@ -159,6 +159,55 @@ class TestXRDFitter:
         assert n_scaled > 0, "test is vacuous: scaled fit found no peaks"
         assert n_norm == n_scaled, f"scaling broke the amp threshold: {n_norm} vs {n_scaled}"
 
+    def test_invalid_detected_peak_indices_are_skipped(self, monkeypatch):
+        xrd = make_synthetic_xrd()
+        fitter = XRDFitter()
+
+        def bad_detect_peaks(x, y):
+            return np.array([len(x), -1]), np.zeros_like(y), 0.1
+
+        monkeypatch.setattr(fitter, "_detect_peaks", bad_detect_peaks)
+
+        result = fitter.fit_sample(
+            xrd,
+            warm_peaks=[{"center": 26.65, "fwhm": 0.20, "amplitude": 100.0, "eta": 0.2}],
+        )
+
+        assert result.n_peaks == 0
+        assert result.all_peaks == []
+        assert np.isnan(result.dominant_peak["center"])
+
+    def test_all_optimizer_failures_return_empty_fit_result(self, monkeypatch):
+        xrd = make_synthetic_xrd()
+        fitter = XRDFitter()
+
+        def one_detected_peak(x, y):
+            return np.array([int(np.argmax(y))]), np.zeros_like(y), 0.1
+
+        def always_fail(*_args, **_kwargs):
+            raise RuntimeError("optimizer failed")
+
+        monkeypatch.setattr(fitter, "_detect_peaks", one_detected_peak)
+        monkeypatch.setattr(fitter, "_fit_one_roi", always_fail)
+
+        result = fitter.fit_sample(xrd)
+
+        assert result.n_peaks == 0
+        assert result.all_peaks == []
+        assert result.r_squared == 0.0
+        assert set(result.dominant_peak.keys()) == {"center", "fwhm", "amplitude", "eta"}
+
+    def test_dominant_peak_matches_peak_with_largest_amplitude(self):
+        xrd = make_synthetic_xrd(peak_centers=(26.65, 31.40), noise_level=0.0)
+        result = XRDFitter().fit_sample(xrd)
+        assert result.all_peaks, "test is vacuous: synthetic fit found no peaks"
+
+        strongest = max(result.all_peaks, key=lambda p: p["amplitude"])
+
+        assert result.dominant_peak
+        assert result.dominant_peak["center"] == pytest.approx(strongest["center"])
+        assert result.dominant_peak["amplitude"] == pytest.approx(strongest["amplitude"])
+
 
 class TestWarmStart:
     def test_warm_start_batch_completes(self, synthetic_rruff_file):

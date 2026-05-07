@@ -48,3 +48,20 @@ class TestXRDLoader:
         result = XRDLoader.load_directory(tmp_path)
         assert "Quartz__R040031" in result
         assert len(result) == 1  # download script not included
+
+    def test_malformed_comment_only_file_raises_cleanly(self, tmp_path):
+        path = tmp_path / "comment_only.txt"
+        path.write_text("##NAMES=No data\n# all comments\n")
+
+        with pytest.raises(ValueError, match="No XRD data rows found"):
+            XRDLoader.load(path)
+
+    def test_load_directory_returns_one_entry_per_txt_file(self, tmp_path):
+        (tmp_path / "A.txt").write_text("##NAMES=A\n26.0, 100.0\n")
+        (tmp_path / "B.txt").write_text("##NAMES=B\n27.0, 50.0\n")
+        (tmp_path / "ignore.csv").write_text("28.0, 25.0\n")
+
+        result = XRDLoader.load_directory(tmp_path)
+
+        assert set(result) == {"A", "B"}
+        assert len(result) == 2

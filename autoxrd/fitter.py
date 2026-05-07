@@ -82,13 +82,16 @@ class XRDFitter:
         composite_pv = np.zeros_like(y)
         for idx in peak_indices:
             warm_sigma = None
-            if warm_peaks:
-                c_guess = float(x[int(idx)])
-                dists = [abs(p["center"] - c_guess) for p in warm_peaks]
-                nearest = int(np.argmin(dists))
-                if dists[nearest] < 0.15:
-                    warm_sigma = warm_peaks[nearest]["fwhm"] / 2.0
             try:
+                idx = int(idx)
+                if idx < 0 or idx >= len(x):
+                    raise IndexError(f"Peak index {idx} outside sample length {len(x)}")
+                if warm_peaks:
+                    c_guess = float(x[idx])
+                    dists = [abs(p["center"] - c_guess) for p in warm_peaks]
+                    nearest = int(np.argmin(dists))
+                    if dists[nearest] < 0.15:
+                        warm_sigma = warm_peaks[nearest]["fwhm"] / 2.0
                 fit = self._fit_one_roi(x, y, int(idx), warm_sigma=warm_sigma)
                 raw_fits.append(fit)
                 composite_pv += self._evaluate_pv(x, fit)
