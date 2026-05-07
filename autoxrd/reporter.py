@@ -230,7 +230,6 @@ class HTMLReporter:
 
         colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
         n_samples = len(sample_order)
-        mean_idx = (n_samples + 1) / 2.0
         x_line = np.array([1.0, float(n_samples)])
 
         for j, (peak_num, grp) in enumerate(peak_table.groupby("Peak #")):
@@ -246,14 +245,15 @@ class HTMLReporter:
                     row = model_row.iloc[0]
                     pos_slope = row["Position slope (°/sample)"]
                     fwhm_slope = row["FWHM slope (°/sample)"]
+                    mean_obs_idx = float(grp["_idx"].mean())
                     if not np.isnan(float(pos_slope)):
                         mean_pos = float(grp["2θ (°)"].mean())
-                        intercept_pos = mean_pos - pos_slope * mean_idx
+                        intercept_pos = mean_pos - pos_slope * mean_obs_idx
                         ax1.plot(x_line, pos_slope * x_line + intercept_pos,
                                  ls="--", lw=1.0, color=c, alpha=0.55)
                     if not np.isnan(float(fwhm_slope)):
                         mean_fwhm = float(grp["FWHM (°)"].mean())
-                        intercept_fwhm = mean_fwhm - fwhm_slope * mean_idx
+                        intercept_fwhm = mean_fwhm - fwhm_slope * mean_obs_idx
                         ax2.plot(x_line, fwhm_slope * x_line + intercept_fwhm,
                                  ls="--", lw=1.0, color=c, alpha=0.55)
 
