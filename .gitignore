@@ -1,6 +1,25 @@
 # Generated output
 output/
 
+# Local test and agent scratch directories
+.codex_tmp*/
+.pytest-basetemp*/
+.pytest-codex-basetemp/
+.pytest-tmp/
+.pytest_basetemp/
+.pytest_cache/
+.tmp/
+brand_new_basetemp*/
+manual_py_mkdir*/
+pytest_run_tmp/
+py_mkdir*/
+tmp*/
+
+# Local agent context artifacts
+CONTEXT.md
+**/CONTEXT.md
+docs/superpowers/
+
 # Python
 __pycache__/
 *.py[cod]
