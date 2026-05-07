@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ metadata.title }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      background: #fff;
+    }
+    h1, h2, h3 {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      color: #111;
+    }
+    h1 { font-size: 1.8rem; margin-bottom: 0.4rem; }
+    h2 { font-size: 1.2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem;
+         margin-top: 2.5rem; margin-bottom: 1rem; }
+    h3 { font-size: 1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #333; }
+    .header-block {
+      border-bottom: 2px solid #333;
+      padding-bottom: 1.2rem;
+      margin-bottom: 2rem;
+    }
+    .header-meta { color: #555; font-size: 0.9rem; margin-top: 0.3rem; }
+    .section { margin-bottom: 2.5rem; }
+    .figure-grid { display: flex; flex-direction: column; gap: 1.5rem; }
+    .figure-card {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 1rem;
+      background: #fafafa;
+    }
+    .figure-card img { width: 100%; height: auto; display: block; }
+    .figure-card h3 { margin-top: 0; font-size: 0.95rem; color: #444; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.85rem;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    th { background: #f0f0f0; font-weight: 600; text-align: left;
+         padding: 8px 10px; border: 1px solid #ccc; }
+    td { padding: 6px 10px; border: 1px solid #ddd; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .flagged-row { background: #fff3cd !important; }
+    .flag-badge {
+      display: inline-block; background: #fce8e8; color: #b00;
+      border-radius: 3px; padding: 1px 6px; font-size: 0.8em;
+    }
+    ul { margin: 0; padding-left: 1.4rem; }
+    li { margin-bottom: 0.4rem; }
+    .no-anomalies { color: #555; font-style: italic; }
+    @media print {
+      body { padding: 1rem; }
+      .figure-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+{# ── Section 1: Header ── #}
+<div class="header-block section">
+  <h1>{{ metadata.title }}</h1>
+  <div class="header-meta">
+    <strong>Date:</strong> {{ today }} &nbsp;|&nbsp;
+    <strong>Analyst:</strong> {{ metadata.analyst }} &nbsp;|&nbsp;
+    <strong>Samples:</strong> {{ metadata.sample_count }} &nbsp;|&nbsp;
+    <strong>Method:</strong> lmfit PseudoVoigt · Scherrer K=0.9 · Cu Kα λ=1.54056 Å
+  </div>
+</div>
+
+{# ── Section 2: Executive Summary ── #}
+<div class="section">
+  <h2>Executive Summary</h2>
+  <p>{{ exec_summary }}</p>
+</div>
+
+{# ── Section 3: Data Overview ── #}
+<div class="section">
+  <h2>Data Overview</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Sample</th>
+        <th>Phase</th>
+        <th>Peaks Detected</th>
+        <th>R²</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in summary_table %}
+      <tr class="{{ 'flagged-row' if row.Flag else '' }}">
+        <td>{{ row.Sample }}</td>
+        <td>{{ row.Phase }}</td>
+        <td>{{ row.N_peaks }}</td>
+        <td>{{ "%.4f" | format(row["R²"]) }}</td>
+        <td>
+          {% if row.Flag %}
+            <span class="flag-badge">{{ row.Flag }}</span>
+          {% else %}
+            ✓
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Section 4: Figures ── #}
+<div class="section">
+  <h2>Sample Figures</h2>
+  <p style="font-size:0.85rem;color:#555;">
+    Each panel shows: raw spectrum (left), fit overlay (center), residuals (right).
+  </p>
+  <div class="figure-grid">
+  {% for name, b64 in figures.items() %}
+    <div class="figure-card">
+      <h3>{{ name }}</h3>
+      <img src="data:image/png;base64,{{ b64 }}"
+           alt="{{ name }} XRD fit">
+    </div>
+  {% endfor %}
+  </div>
+</div>
+
+{# ── Section 5: Full Summary Table ── #}
+<div class="section">
+  <h2>Full Summary Table</h2>
+  <p style="font-size:0.85rem;color:#555;">
+    Scherrer sizes are upper-bound estimates; instrument broadening not subtracted.
+  </p>
+  {{ table_html | safe }}
+</div>
+
+{# ── Section 6: Anomaly Report ── #}
+<div class="section">
+  <h2>Anomaly Report</h2>
+  {% if anomaly_report %}
+  <table>
+    <thead>
+      <tr>
+        <th>Sample</th>
+        <th>R²</th>
+        <th>FWHM (°)</th>
+        <th>Crystallite Size (nm)</th>
+        <th>Flag</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in anomaly_report %}
+      <tr class="flagged-row">
+        <td>{{ row.Sample }}</td>
+        <td>{{ "%.4f" | format(row["R²"]) }}</td>
+        <td>{{ "%.4f" | format(row["FWHM (°)"]) }}</td>
+        <td>
+          {% if row["Crystallite Size (nm)"] is not none %}
+            {{ "%.1f" | format(row["Crystallite Size (nm)"]) }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td><span class="flag-badge">{{ row.Flag }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="no-anomalies">No anomalies detected across all samples.</p>
+  {% endif %}
+</div>
+
+{# ── Section 7: Key Findings ── #}
+<div class="section">
+  <h2>Key Findings</h2>
+  <ul>
+  {% for finding in key_findings %}
+    <li>{{ finding }}</li>
+  {% endfor %}
+  </ul>
+</div>
+
+{# ── Section 8: Next Steps ── #}
+<div class="section">
+  <h2>Next Steps</h2>
+  <ul>
+    <li>Verify any flagged samples with manual peak assignment or reference pattern matching (PDF-4+, COD).</li>
+    <li>Subtract instrument broadening using a standard (LaB₆ or NIST Si SRM 640) before reporting Scherrer sizes as absolute values.</li>
+    <li>For multi-phase samples, consider Rietveld refinement for quantitative phase analysis.</li>
+    <li>Cross-reference d-spacings with published crystallographic databases for phase identification confirmation.</li>
+  </ul>
+</div>
+
+</body>
+</html>
