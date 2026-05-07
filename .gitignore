@@ -1,5 +1,8 @@
 # Generated output
-output/
+output/*
+!output/reports/
+output/reports/*
+!output/reports/xrd_memo.html
 
 # Local test and agent scratch directories
 .codex_tmp*/
