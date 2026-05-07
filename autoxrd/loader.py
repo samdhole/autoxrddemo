@@ -39,7 +39,10 @@ class XRDLoader:
                     parts = line.replace(",", " ").split()
                     if len(parts) >= 2:
                         try:
-                            data_lines.append((float(parts[0]), float(parts[1])))
+                            two_theta = float(parts[0])
+                            intensity = float(parts[1])
+                            if np.isfinite(two_theta) and np.isfinite(intensity):
+                                data_lines.append((two_theta, intensity))
                         except ValueError:
                             pass
 
