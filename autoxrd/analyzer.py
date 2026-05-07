@@ -5,6 +5,11 @@ import pandas as pd
 from .fitter import FitResult
 
 
+def _default_parse_phase(name: str) -> str:
+    """Extract phase name from sample name by splitting on '__'."""
+    return name.split("__")[0]
+
+
 class XRDAnalyzer:
     K_SCHERRER = 0.9
     ANGSTROM_TO_NM = 0.1
@@ -38,7 +43,7 @@ class XRDAnalyzer:
     @classmethod
     def build_summary_table(cls, fit_results: dict[str, FitResult], parse_phase=None) -> pd.DataFrame:
         if parse_phase is None:
-            parse_phase = lambda name: name.split("__")[0]
+            parse_phase = _default_parse_phase
         rows = []
         for name, fr in fit_results.items():
             dp = fr.dominant_peak
@@ -104,7 +109,7 @@ class XRDAnalyzer:
     def build_peak_table(cls, fit_results: dict[str, FitResult], parse_phase=None) -> pd.DataFrame:
         """One row per fitted peak across all samples — position, FWHM, d-spacing, relative intensity."""
         if parse_phase is None:
-            parse_phase = lambda name: name.split("__")[0]
+            parse_phase = _default_parse_phase
         rows = []
         for name, fr in fit_results.items():
             phase = parse_phase(name)
